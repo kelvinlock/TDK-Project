@@ -143,7 +143,7 @@ Arduino Pin | Motor Driver
 3          | IN1
 4          | IN2
 GND        | GND
-
+```
 ### 2. Arduino Setup
 Upload this code to your Arduino:
 ```arduino
@@ -243,6 +243,3 @@ def map_axis_to_pwm(axis_value):
 MIT License - Free for personal and educational use
 
 ---
-
-*Project by [Kelvin] | Last updated: April 2025*
-```
