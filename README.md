@@ -12,3 +12,4 @@ The **Taiwan TDK Cup National University Creative Design and Robotics Competitio
 - **Prizes**: Winners receive up to **NT$200,000**, with opportunities for international exchanges (e.g., visits to Japan’s NHK Robocon).  
 - **Educational Impact**: Emphasizes practical skills in automation, AI, and mechanical design, aligning with industry needs.  
 - **Recent Updates**: Hybrid/online formats were adopted during the pandemic, and some categories (e.g., Flying Group) may vary by year.  
+For details, visit the [official website](https://web02.yuntech.edu.tw/~tdk_4hhoerjt/) or follow "Taiwan TDK Robocon" on Facebook.
