@@ -143,7 +143,7 @@ Arduino Pin | Motor Driver
 3          | IN1
 4          | IN2
 GND        | GND
-
+```
 ### 2. Arduino Setup
 Upload this code to your Arduino:
 ```arduino
