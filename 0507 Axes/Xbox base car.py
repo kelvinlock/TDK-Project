@@ -42,7 +42,7 @@ def main():
     pygame.display.set_caption("Joystick Axes Display")
 
     try:
-        #arduino = serial.Serial("COM6", 9600, timeout=1)
+        arduino = serial.Serial("COM6", 9600, timeout=1)
         time.sleep(2)  # 等待串口初始化
     except Exception as e:
         print(f"串口連接失敗: {e}")
@@ -98,16 +98,21 @@ def main():
 
             # 取得左搖桿Y軸值（Xbox手柄通常為axis 1）
             try:
-                axis_value = joystick.get_axis(1)  # 如果軸不存在會觸發異常
-                pwm_value = map_axis_to_pwm(-axis_value)
+                axis_value0 = joystick.get_axis(0)
+                axis_value1 = joystick.get_axis(1)  # 如果軸不存在會觸發異常
+                pwm_value0 = map_axis_to_pwm(-axis_value0)
+                pwm_value1 = map_axis_to_pwm(-axis_value1)
 
-                text_print.tprint(screen, f"Original Y-axis value: {axis_value:.3f}")
-                text_print.tprint(screen, f"PWM output value: {pwm_value}")
+                text_print.tprint(screen, f"Original X-axis value: {axis_value0:.3f}")
+                text_print.tprint(screen, f"PWM output value: {pwm_value0}")
+
+                text_print.tprint(screen, f"Original Y-axis value: {axis_value1:.3f}")
+                text_print.tprint(screen, f"PWM output value: {pwm_value1}")
 
                 # 發送數據到Arduino
                 try:
-                    #arduino.write(f"PWM:{pwm_value}\n".encode())
-                    print()
+                    arduino.write(f"PWM:{pwm_value0}\n".encode())
+                    arduino.write(f"PWM:{pwm_value1}\n".encode())
                 except serial.SerialException as e:
                     print(f"串口寫入失敗: {e}")
                     done = True
@@ -118,7 +123,7 @@ def main():
         clock.tick(30)  # 控制更新速率
 
     # 正確關閉資源（主迴圈結束後執行）
-    #arduino.close()
+    arduino.close()
     pygame.quit()
 
 
