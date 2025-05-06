@@ -111,8 +111,7 @@ def main():
 
                 # 發送數據到Arduino
                 try:
-                    arduino.write(f"PWM:{pwm_value0}\n".encode())
-                    arduino.write(f"PWM:{pwm_value1}\n".encode())
+                    arduino.write(f"X:{pwm_value0},Y:{pwm_value1}\n".encode())
                 except serial.SerialException as e:
                     print(f"串口寫入失敗: {e}")
                     done = True
