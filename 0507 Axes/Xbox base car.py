@@ -42,7 +42,7 @@ def main():
     pygame.display.set_caption("Joystick Axes Display")
 
     try:
-        arduino = serial.Serial("COM6", 9600, timeout=1)
+        #arduino = serial.Serial("COM6", 9600, timeout=1)
         time.sleep(2)  # 等待串口初始化
     except Exception as e:
         print(f"串口連接失敗: {e}")
@@ -111,7 +111,8 @@ def main():
 
                 # 發送數據到Arduino
                 try:
-                    arduino.write(f"X:{pwm_value0},Y:{pwm_value1}\n".encode())
+                    #arduino.write(f"X:{pwm_value0},Y:{pwm_value1}\n".encode())
+                    print()
                 except serial.SerialException as e:
                     print(f"串口寫入失敗: {e}")
                     done = True
@@ -122,7 +123,7 @@ def main():
         clock.tick(30)  # 控制更新速率
 
     # 正確關閉資源（主迴圈結束後執行）
-    arduino.close()
+    #arduino.close()
     pygame.quit()
 
 
