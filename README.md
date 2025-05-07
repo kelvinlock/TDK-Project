@@ -14,3 +14,62 @@ The **Taiwan TDK Cup National University Creative Design and Robotics Competitio
 - **Educational Impact**: Emphasizes practical skills in automation, AI, and mechanical design, aligning with industry needs.  
 - **Recent Updates**: Hybrid/online formats were adopted during the pandemic, and some categories (e.g., Flying Group) may vary by year.  
 For details, visit the [official website](https://web02.yuntech.edu.tw/~tdk_4hhoerjt/) or follow "Taiwan TDK Robocon" on Facebook.
+
+## Package Requirements
+
+* pygame
+* pyserial
+
+```bash
+pip install pygame
+pip install pyserial
+```
+
+## Problem might overcome
+```bash
+module 'serial' has no attribute 'Serial'
+```
+The error `module 'serial' has no attribute 'Serial'` usually means **Python is importing the wrong module** — often a local file named `serial.py` that shadows the `pyserial` package.
+
+### Here's how to fix it:
+
+#### ✅ Step 1: Check for a conflicting file
+
+Make sure you **don’t have a file named `serial.py`** (or a folder named `serial/`) in your project directory.
+
+* If yes, **rename it** to something else, like `serial_test.py`.
+* Also, delete any corresponding `serial.pyc` or `__pycache__/` folders that might still contain cached versions.
+
+#### ✅ Step 2: Test your import
+
+Open a Python shell and run:
+
+```python
+import serial
+print(serial.__file__)
+```
+
+If it prints a path to your own file (e.g., `.../serial.py`), you're still importing the wrong module.
+
+It should point to something like:
+
+```
+.../site-packages/serial/__init__.py
+```
+
+#### ✅ Step 3: Confirm installation
+
+If you're unsure whether pyserial is installed correctly, you can reinstall it:
+
+```bash
+pip uninstall serial
+pip uninstall pyserial
+pip install pyserial
+```
+
+Then test again with:
+
+```python
+import serial
+print(serial.Serial)
+```
