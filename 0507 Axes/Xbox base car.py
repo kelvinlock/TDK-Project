@@ -33,6 +33,7 @@ def map_axis_to_speed(axis_value, deadzone=0.1):
         return 0
     return int(axis_value * 255)
 
+
 def calculate_mecanum_speeds(x, y):
     """計算麥克納姆輪四輪速度"""
     # 麥克納姆輪運動學公式
@@ -49,6 +50,7 @@ def calculate_mecanum_speeds(x, y):
         wheel_speeds = [int(s * 255 / max_speed) for s in wheel_speeds]
 
     return wheel_speeds
+
 
 def main():
     screen = pygame.display.set_mode((500, 700))
@@ -122,7 +124,9 @@ def main():
 
                 # 顯示數據
                 text_print.tprint(screen, f"X: {x_axis:.2f} -> {x_speed}")
+                text_print.tprint(screen, f"PWM value: {x_speed}")
                 text_print.tprint(screen, f"Y: {y_axis:.2f} -> {y_speed}")
+                text_print.tprint(screen, f"PWM value: {y_speed}")
 
                 for i, speed in enumerate(wheel_speeds):
                     text_print.tprint(screen, f"Wheel {i}: {speed}")
