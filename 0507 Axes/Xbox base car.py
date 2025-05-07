@@ -27,22 +27,35 @@ class TextPrint:
         self.x -= 10
 
 
-def map_axis_to_pwm(axis_value):
-    """將搖桿軸值(-1.0~1.0)映射到PWM值(0~255)，127為停止點"""
-    # 先將軸值縮放到 -127~127，然後偏移到 0~254
-    pwm = int(axis_value * 127 + 127)
-    # 確保 127 是唯一停止點（避免浮點誤差）
-    if abs(pwm - 127) < 2:  # 允許微小誤差
-        return 127
-    return pwm
+def map_axis_to_speed(axis_value, deadzone=0.1):
+    """將搖桿值(-1.0~1.0)映射到-255~255，加入死區處理"""
+    if abs(axis_value) < deadzone:
+        return 0
+    return int(axis_value * 255)
 
+def calculate_mecanum_speeds(x, y):
+    """計算麥克納姆輪四輪速度"""
+    # 麥克納姆輪運動學公式
+    wheel_speeds = [
+        y + x,  # 左前輪 (A)
+        y - x,  # 右前輪 (B)
+        y - x,  # 左後輪 (C)
+        y + x  # 右後輪 (D)
+    ]
+
+    # 歸一化處理
+    max_speed = max(abs(s) for s in wheel_speeds)
+    if max_speed > 255:
+        wheel_speeds = [int(s * 255 / max_speed) for s in wheel_speeds]
+
+    return wheel_speeds
 
 def main():
     screen = pygame.display.set_mode((500, 700))
     pygame.display.set_caption("Joystick Axes Display")
 
     try:
-        #arduino = serial.Serial("COM6", 9600, timeout=1)
+        arduino = serial.Serial("COM6", 9600, timeout=1)
         time.sleep(2)  # 等待串口初始化
     except Exception as e:
         print(f"串口連接失敗: {e}")
@@ -98,32 +111,40 @@ def main():
 
             # 取得左搖桿Y軸值（Xbox手柄通常為axis 1）
             try:
-                axis_value0 = joystick.get_axis(0)
-                axis_value1 = joystick.get_axis(1)  # 如果軸不存在會觸發異常
-                pwm_value0 = map_axis_to_pwm(-axis_value0)
-                pwm_value1 = map_axis_to_pwm(-axis_value1)
+                # 獲取搖桿值 (X軸和Y軸)
+                x_axis = joystick.get_axis(0)  # 左搖桿X軸
+                y_axis = -joystick.get_axis(1)  # 左搖桿Y軸 (反向)
 
-                text_print.tprint(screen, f"Original X-axis value: {axis_value0:.3f}")
-                text_print.tprint(screen, f"PWM output value: {pwm_value0}")
+                # 計算速度
+                x_speed = map_axis_to_speed(x_axis)
+                y_speed = map_axis_to_speed(y_axis)
+                wheel_speeds = calculate_mecanum_speeds(x_speed, y_speed)
 
-                text_print.tprint(screen, f"Original Y-axis value: {axis_value1:.3f}")
-                text_print.tprint(screen, f"PWM output value: {pwm_value1}")
+                # 顯示數據
+                text_print.tprint(screen, f"X: {x_axis:.2f} -> {x_speed}")
+                text_print.tprint(screen, f"Y: {y_axis:.2f} -> {y_speed}")
 
-                # 發送數據到Arduino
-                try:
-                    #arduino.write(f"X:{pwm_value0},Y:{pwm_value1}\n".encode())
-                    print()
-                except serial.SerialException as e:
-                    print(f"串口寫入失敗: {e}")
-                    done = True
+                for i, speed in enumerate(wheel_speeds):
+                    text_print.tprint(screen, f"Wheel {i}: {speed}")
+
+                # 發送數據到Arduino (格式: A_DIR,A_SPD:B_DIR,B_SPD:...)
+                if arduino and arduino.is_open:
+                    data_packet = ""
+                    for speed in wheel_speeds:
+                        direction = 1 if speed >= 0 else 0
+                        data_packet += f"{direction},{abs(speed)}:"
+                    try:
+                        arduino.write(data_packet[:-1].encode() + b'\n')
+                    except serial.SerialException as e:
+                        print(f"Send error: {e}")
             except pygame.error:
                 text_print.tprint(screen, "錯誤: 無法讀取搖桿軸值")
 
         pygame.display.flip()
         clock.tick(30)  # 控制更新速率
 
-    # 正確關閉資源（主迴圈結束後執行）
-    #arduino.close()
+    if arduino and arduino.is_open:
+        arduino.close()
     pygame.quit()
 
 

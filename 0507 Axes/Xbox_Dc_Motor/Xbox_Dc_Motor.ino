@@ -1,64 +1,58 @@
-// 定義馬達結構體
 struct Motor {
-  int forwardPin;   // 馬達正轉引腳
-  int backwardPin;  // 馬達反轉引腳
-  int speedPin;     // 馬達使能引腳（控制速度）
+    int forwardPin;
+    int backwardPin;
+    int speedPin;
 };
-// Declare pin number
+
 Motor motors[4] = {
-  {2, 3, 6},    // 馬達1：forwardPin=2, backwardPin=3, enablePin=6
-  {4, 5, 6},    // 馬達2：forwardPin=4, backwardPin=5, enablePin=6
-  {7, 9, 6},    // 馬達3：forwardPin=7, backwardPin=9, enablePin=6
-  {8, 10, 6}    // 馬達4：forwardPin=8, backwardPin=10, enablePin=6
-}
+    {2, 3, 6},   // 左前輪 (A)
+    {4, 5, 6},   // 右前輪 (B)
+    {7, 9, 6},   // 左後輪 (C)
+    {8, 10, 6}   // 右後輪 (D)
+};
 
-String axes[2];
-int axes_values[2];
 void setup() {
-  // 初始化串行通訊S
-  Serial.begin(9600);
-
-  // 設置馬達引腳為輸出
-  for(int a = 0 ; a < 4 ; a++) {
-    pinMode(motors[a].forwardPin, OUTPUT);
-    pinMode(motors[a].backwardPin, OUTPUT);
-    pinMode(motors[a].enablePin, OUTPUT);
-  }
+    Serial.begin(9600);
+    for(int i = 0; i < 4; i++) {
+        pinMode(motors[i].forwardPin, OUTPUT);
+        pinMode(motors[i].backwardPin, OUTPUT);
+        pinMode(motors[i].speedPin, OUTPUT);
+    }
 }
 
 void loop() {
-  if (Serial.available() > 0) {
-    String data = Serial.readStringUntil('\n'); // 例如輸入：X:132,Y:234
-
-    if (data.startsWith("X:")) {
-      int comma_index = data.indexOf(",");
-
-      if (comma_index != -1) {
-        axes[0] = data.substring(0, comma_index);           // "X:132"
-        axes[1] = data.substring(comma_index + 1);          // "Y:234"
-
-        for (int i = 0; i < 2; i++) {
-          axes_values[i] = axes[i].substring(2).toInt();    // 取 "132"、"234"
-          axes_values[i] = constrain(axes_values[i], 0, 255);
-        }
-      }
+    if (Serial.available() > 0) {
+        String data = Serial.readStringUntil('\n');
+        processMotorData(data);
     }
-      // 強化停止判斷（127±5為死區）
-      if (speed >= 132) {         // 前進
-        digitalWrite(IN1, HIGH);
-        digitalWrite(IN2, LOW);
-        analogWrite(enablePin, speed);
-      } else if (speed <= 122) {  // 後退
-        digitalWrite(IN1, LOW);
-        digitalWrite(IN2, HIGH);
-        analogWrite(enablePin, 255 - speed);  // 反轉時保持速度線性
-      } else {                    // 停止
-        digitalWrite(IN1, LOW);
-        digitalWrite(IN2, LOW);
-        analogWrite(enablePin, 0);
-      }
-    }
-  }
 }
 
-void move(int, int)
+void processMotorData(String data) {
+    String wheelData[4];
+    int index = 0;
+
+    // 解析數據 (格式: "1,200:0,150:1,100:0,255")
+    while (data.length() > 0 && index < 4) {
+        int colonPos = data.indexOf(':');
+        if (colonPos == -1) {
+            wheelData[index++] = data;
+            data = "";
+        } else {
+            wheelData[index++] = data.substring(0, colonPos);
+            data = data.substring(colonPos+1);
+        }
+    }
+
+    // 控制每個馬達
+    for (int i = 0; i < 4; i++) {
+        int commaPos = wheelData[i].indexOf(',');
+        if (commaPos != -1) {
+            int dir = wheelData[i].substring(0, commaPos).toInt();
+            int speed = wheelData[i].substring(commaPos+1).toInt();
+
+            digitalWrite(motors[i].forwardPin, dir);
+            digitalWrite(motors[i].backwardPin, !dir);
+            analogWrite(motors[i].speedPin, speed);
+        }
+    }
+}
