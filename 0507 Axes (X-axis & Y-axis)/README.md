@@ -1,3 +1,59 @@
+# Xbox Controller Mecanum Wheel Motor Control
+
+![Mecanum Wheel Robot](https://via.placeholder.com/600x300?text=Mecanum+Wheel+Robot+Diagram)
+
+A complete system for controlling a mecanum wheel robot using an Xbox controller, Python, and Arduino.
+
+## Features
+- 🎮 Xbox controller input for intuitive omnidirectional control
+- 📊 Real-time axis-to-PWM conversion with deadzone handling
+- 🤖 Mecanum wheel kinematics calculations for 4-wheel control
+- 📡 Serial communication between Python and Arduino
+- 🚀 Individual motor control with direction and speed
+- 📺 Real-time GUI displaying controller inputs and motor outputs
+
+## Hardware Requirements
+| Component | Quantity | Notes |
+|-----------|----------|-------|
+| Xbox Controller | 1 | Wired or wireless with adapter |
+| Arduino Mega 2560 | 1 | Or compatible board |
+| Mecanum Wheels | 4 | With matching motors |
+| Motor Driver (L298N) | 2 | Or equivalent dual H-bridge |
+| 12V Power Supply | 1 | For motor power |
+| Jumper Wires | 20+ | Male-to-male |
+
+## Wiring Diagram
+```plaintext
+Motor   Arduino Pins
+-----   ------------
+Left Front:
+  DIR1 → 2
+  DIR2 → 3
+  PWM  → 5
+
+Right Front:
+  DIR1 → 4
+  DIR2 → 5
+  PWM  → 6
+
+Left Rear:
+  DIR1 → 7
+  DIR2 → 8
+  PWM  → 9
+
+Right Rear:
+  DIR1 → 9
+  DIR2 → 10
+  PWM  → 10
+```
+---
+## Software Setup
+### Python Requirements
+```bash
+pip install pygame pyserial
+```
+### Python Script (controller_mecanum.py)
+```python
 import pygame
 import serial
 import time
@@ -33,6 +89,7 @@ def map_axis_to_speed(axis_value, deadzone=0.1):
         return 0
     return int(axis_value * 255)
 
+
 def calculate_mecanum_speeds(x, y):
     """計算麥克納姆輪四輪速度"""
     # 麥克納姆輪運動學公式
@@ -49,6 +106,7 @@ def calculate_mecanum_speeds(x, y):
         wheel_speeds = [int(s * 255 / max_speed) for s in wheel_speeds]
 
     return wheel_speeds
+
 
 def main():
     screen = pygame.display.set_mode((500, 700))
@@ -122,7 +180,9 @@ def main():
 
                 # 顯示數據
                 text_print.tprint(screen, f"X: {x_axis:.2f} -> {x_speed}")
+                text_print.tprint(screen, f"PWM value: {x_speed}")
                 text_print.tprint(screen, f"Y: {y_axis:.2f} -> {y_speed}")
+                text_print.tprint(screen, f"PWM value: {y_speed}")
 
                 for i, speed in enumerate(wheel_speeds):
                     text_print.tprint(screen, f"Wheel {i}: {speed}")
@@ -134,7 +194,6 @@ def main():
                         direction = 1 if speed >= 0 else 0
                         data_packet += f"{direction},{abs(speed)}:"
                     try:
-                        text_print.tprint(screen, data_packet)
                         arduino.write(data_packet[:-1].encode() + b'\n')
                     except serial.SerialException as e:
                         print(f"Send error: {e}")
@@ -151,3 +210,111 @@ def main():
 
 if __name__ == "__main__":
     main()
+```
+### Arduino Code
+```arduino
+struct Motor {
+    int forwardPin;
+    int backwardPin;
+    int speedPin;
+};
+
+Motor motors[4] = {
+    {2, 3, 6},   // 左前輪 (A)
+    {4, 5, 6},   // 右前輪 (B)
+    {7, 9, 6},   // 左後輪 (C)
+    {8, 10, 6}   // 右後輪 (D)
+};
+
+void setup() {
+    Serial.begin(9600);
+    for(int i = 0; i < 4; i++) {
+        pinMode(motors[i].forwardPin, OUTPUT);
+        pinMode(motors[i].backwardPin, OUTPUT);
+        pinMode(motors[i].speedPin, OUTPUT);
+    }
+}
+
+void loop() {
+    if (Serial.available() > 0) {
+        String data = Serial.readStringUntil('\n');
+        processMotorData(data);
+    }
+}
+
+void processMotorData(String data) {
+    String wheelData[4];
+    int index = 0;
+
+    // 解析數據 (格式: "1,200:0,150:1,100:0,255")
+    while (data.length() > 0 && index < 4) {
+        int colonPos = data.indexOf(':');
+        if (colonPos == -1) {
+            wheelData[index++] = data;
+            data = "";
+        } else {
+            wheelData[index++] = data.substring(0, colonPos);
+            data = data.substring(colonPos+1);
+        }
+    }
+
+    // 控制每個馬達
+    for (int i = 0; i < 4; i++) {
+        int commaPos = wheelData[i].indexOf(',');
+        if (commaPos != -1) {
+            int dir = wheelData[i].substring(0, commaPos).toInt();
+            int speed = wheelData[i].substring(commaPos+1).toInt();
+
+            digitalWrite(motors[i].forwardPin, dir);
+            digitalWrite(motors[i].backwardPin, !dir);
+            analogWrite(motors[i].speedPin, speed);
+        }
+    }
+}
+```
+## Installation Guide
+1. Hardware Assembly
+   * Connect all motors to the motor drivers
+   * Wire motor drivers to Arduino as shown above
+   * Connect power supply to motor drivers
+2. Software Setup
+   * Upload Arduino code to your board
+   * Install Python dependencies
+   * Modify COM port in a Python script if needed
+3. Running the System
+```bash
+python controller_mecanum.py
+```
+## Control Scheme
+| Controller Input | Robot Movement |
+|------------------|----------------|
+| Left Stick Up    | Forward        |
+| Left Stick Down  | Backward       |
+| Left Stick Left  | Strafe Left    |
+| Left Stick Right | Strafe Right   |
+| Diagonal Inputs  | Diagonal Move  |
+| Stick Release    | Stop           |
+
+## Mecanum-Wheel Kinematics
+The system uses these formulas to calculate individual wheel speeds:
+```
+Wheel Speeds:
+  Left Front  = Y + X
+  Right Front = Y - X
+  Left Rear   = Y - X
+  Right Rear  = Y + X
+```
+Where:
+- X = normalized x-axis input (-255 to 255)
+- Y = normalized y-axis input (-255 to 255)
+
+## Troubleshooting
+| Issue | Solution |
+|-------|----------|
+| Motors not responding | Check power connections and serial port |
+| Uneven movement | Verify wheel orientation and motor wiring |
+| Jerky motion | Adjust deadzone value in Python script |
+| Serial errors | Ensure correct baud rate (9600) |
+
+## License
+MIT License—Free for modification and commercial use
