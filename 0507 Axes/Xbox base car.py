@@ -134,6 +134,7 @@ def main():
                         direction = 1 if speed >= 0 else 0
                         data_packet += f"{direction},{abs(speed)}:"
                     try:
+                        text_print.tprint(screen, data_packet)
                         arduino.write(data_packet[:-1].encode() + b'\n')
                     except serial.SerialException as e:
                         print(f"Send error: {e}")
