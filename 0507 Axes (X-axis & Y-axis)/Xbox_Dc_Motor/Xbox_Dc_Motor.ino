@@ -50,9 +50,16 @@ void processMotorData(String data) {
             int dir = wheelData[i].substring(0, commaPos).toInt();
             int speed = wheelData[i].substring(commaPos+1).toInt();
 
-            digitalWrite(motors[i].forwardPin, dir);
-            digitalWrite(motors[i].backwardPin, !dir);
-            analogWrite(motors[i].speedPin, speed);
+            if (speed > 0){
+                digitalWrite(motors[i].forwardPin, dir);
+                digitalWrite(motors[i].backwardPin, !dir);
+                analogWrite(motors[i].speedPin, speed);
+            }
+            else {
+                digitalWrite(motors[i].forwardPin, 0);
+                digitalWrite(motors[i].backwardPin, 0);
+                analogWrite(motors[i].speedPin, speed);
+            }
         }
     }
 }
