@@ -56,76 +56,69 @@ def main():
         # Possible joystick events: JOYAXISMOTION, JOYBALLMOTION, JOYBUTTONDOWN,
         # JOYBUTTONUP, JOYHATMOTION, JOYDEVICEADDED, JOYDEVICEREMOVED
         for event in pygame.event.get():
-            # Handle hotplugging
-            if event.type == pygame.JOYDEVICEADDED: # True: when new device added
-                # This event will be generated when the program starts for every
-                # joystick, filling up the list without needing to create them manually.
+            if event.type == pygame.QUIT:
+                done = True
+            elif event.type == pygame.JOYDEVICEADDED:
+                # Automatically create an entry for a newly connected joystick
                 joy = pygame.joystick.Joystick(event.device_index)
                 joysticks[joy.get_instance_id()] = joy
                 print(f"Joystick {joy.get_instance_id()} connencted")
-
-            # Drawing step
-            # First, clear the screen to white. Don't put other drawing commands
-            # above this, or they will be erased with this command.
-            screen.fill((255, 255, 255))
-            text_print.reset()
-
-            # Get count of joysticks.
-            joystick_count = pygame.joystick.get_count()
-
-            text_print.tprint(screen, f"Number of joysticks: {joystick_count}")
-            text_print.indent()
-
-            if event.type == pygame.JOYBUTTONDOWN:
+            elif event.type == pygame.JOYDEVICEREMOVED:
+                joysticks.pop(event.instance_id, None)
+                print(f"Joystick {event.instance_id} disconnected")
+            elif event.type == pygame.JOYBUTTONDOWN:
                 print("Joystick button pressed.")
                 if event.button == 0:
                     arduino.write(b'1')
-
-            if event.type == pygame.JOYBUTTONUP:
+            elif event.type == pygame.JOYBUTTONUP:
                 print("Joystick button released.")
                 if event.button == 0:
                     arduino.write(b'0')
 
-            # For each joystick:
-            for joystick in joysticks.values(): # dic values
-                jid = joystick.get_instance_id()
-                text_print.tprint(screen, f"Joystick {jid}")
-                text_print.indent()
+        # Drawing step
+        screen.fill((255, 255, 255))
+        text_print.reset()
 
-                # Get the name from the OS for the controller/joystick.
-                name = joystick.get_name()
-                text_print.tprint(screen, f"Joystick name: {name}")
+        # Get count of joysticks.
+        joystick_count = pygame.joystick.get_count()
+        text_print.tprint(screen, f"Number of joysticks: {joystick_count}")
+        text_print.indent()
 
-                guid = joystick.get_guid()
-                text_print.tprint(screen, f"GUID: {guid}")
+        # For each joystick:
+        for joystick in joysticks.values():
+            jid = joystick.get_instance_id()
+            text_print.tprint(screen, f"Joystick {jid}")
+            text_print.indent()
 
-                power_level = joystick.get_power_level()
-                text_print.tprint(screen, f"Joystick's power level: {power_level}")
+            # Get the name from the OS for the controller/joystick.
+            name = joystick.get_name()
+            text_print.tprint(screen, f"Joystick name: {name}")
 
-                buttons = joystick.get_numbuttons()
-                text_print.tprint(screen, f"Number of buttons: {buttons}")
-                text_print.indent()
+            guid = joystick.get_guid()
+            text_print.tprint(screen, f"GUID: {guid}")
 
-                for i in range(buttons):
-                    if joystick.get_button(i):
-                        text_print.tprint(screen, f"Button {i} pressed")
-                        if joystick.get_button(0):
-                            text_print.tprint(screen,f"LED status: ON")
-                text_print.unindent()
+            power_level = joystick.get_power_level()
+            text_print.tprint(screen, f"Joystick's power level: {power_level}")
 
-            if event.type == pygame.JOYDEVICEREMOVED:
-                del joysticks[event.instance_id]
-                print(f"Joystick {event.instance_id} disconnected")
+            buttons = joystick.get_numbuttons()
+            text_print.tprint(screen, f"Number of buttons: {buttons}")
+            text_print.indent()
 
-            if event.type == pygame.QUIT:
-                done = True  # Flag that we are done so we exit this loop.
+            for i in range(buttons):
+                if joystick.get_button(i):
+                    text_print.tprint(screen, f"Button {i} pressed")
+                    if joystick.get_button(0):
+                        text_print.tprint(screen, "LED status: ON")
+            text_print.unindent()
+            text_print.unindent()
 
-            # Go ahead and update the screen with what we've drawn.
-            pygame.display.flip()
+        # Go ahead and update the screen with what we've drawn.
+        pygame.display.flip()
 
-            # Limit to 30 frames per second.
-            clock.tick(30)
-            arduino.close()
+        # Limit to 30 frames per second.
+        clock.tick(30)
+
+    arduino.close()
 
 
 if __name__ == "__main__":
