@@ -82,25 +82,34 @@ def main():
             elif event.type == pygame.JOYDEVICEREMOVED:
                 del joysticks[event.instance_id]
                 print(f"Joystick {event.instance_id} disconnected")
-
-            buttons = joysticks.get_numbuttons()
-            text_print.indent()
-
-            for i in range(buttons):
-                if event.type == pygame.JOYBUTTONDOWN:
-                    if event.button == 0:
-                        text_print.tprint(screen, f"Platform A will increase")
-                        arduinoB.write(b'platA,1')
-                    elif event.button == 1:
-                        text_print.tprint(screen, f"Platform A will decrease")
-                        arduinoB.write(b'platA,0')
-                    elif event.button == 2:
-                        text_print.tprint(screen, f"Platform B will increase")
-                        arduinoB.write(b'platB,1')
-                    elif event.button == 3:
-                        text_print.tprint(screen, f"Platform B will decrease")
-                        arduinoB.write(b'platB,0')
-            text_print.unindent()
+            # 按钮事件 / Button events
+            elif event.type == pygame.JOYBUTTONDOWN:
+                # Platform A: X (2) increase, Y (3) decrease
+                if event.button == 2:  # X
+                    text_print.tprint(screen, "Platform A ↑")
+                    arduinoB.write(b'platA,1')
+                elif event.button == 3:  # Y
+                    text_print.tprint(screen, "Platform A ↓")
+                    arduinoB.write(b'platA,0')
+                    # Platform B: A (0) increase, B (1) decrease
+                elif event.button == 0:  # A
+                    text_print.tprint(screen, "Platform B ↑")
+                    arduinoB.write(b'platB,1')
+                elif event.button == 1:  # B
+                    text_print.tprint(screen, "Platform B ↓")
+                    arduinoB.write(b'platB,0')
+            # 帽子事件 / Hat events
+            elif pygame.event == pygame.JOYHATMOTION:
+                hat = event.value()  # 直接取 event.value 即 (x,y)
+                if hat == (0, 1):
+                    text_print.tprint(screen, "Hat → Base of Platform A ↑")
+                    arduinoB.write(b'platAbase,1')
+                elif hat == (0, -1):
+                    text_print.tprint(screen, "Hat → Base of Platform B ↑")
+                    arduinoB.write(b'platBbase,1')
+                elif hat == (1, 0):
+                    text_print.tprint(screen, "Hat → Reset")
+                    arduinoB.write(b'reset')
 
         # Drawing step
         screen.fill((255, 255, 255))
@@ -156,17 +165,6 @@ def main():
                 hats = joystick.get_numhats()
                 text_print.tprint(screen, f"Number of hats: {hats}")
                 text_print.indent()
-
-                for i in range(hats):
-                    hat = joystick.get_hat(i)
-                    text_print.tprint(screen, f"Hat {i} value: {str(hat)}")
-                    if pygame.event == pygame.JOYHATMOTION:
-                        if hat == 1:
-                            arduinoB.write(b'platAbase,1')
-                        elif hat == 1:
-                            arduinoB.write(b'platBbase,1')
-                        elif hat == 1:
-                            arduinoB.write(b'Basereset')
 
                 # 發送數據到Arduino (格式: A_DIR,A_SPD:B_DIR,B_SPD:...)
                 if arduinoA and arduinoA.is_open:
