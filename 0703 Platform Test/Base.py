@@ -57,8 +57,8 @@ def main():
     pygame.display.set_caption("Joystick Axes Display")
 
     try:
-        arduinoA = serial.Serial(port="COM6", baudrate=115200, timeout=1)
-        arduinoB = serial.Serial(port="COM", baudrate=115200, timeout=1)
+        arduinoA = serial.Serial(port="COM6", baudrate=9600, timeout=1)
+        arduinoB = serial.Serial(port="COM4", baudrate=9600, timeout=1)
         time.sleep(2)  # 等待串口初始化
     except Exception as e:
         print(f"串口連接失敗: {e}")
