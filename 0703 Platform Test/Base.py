@@ -99,8 +99,8 @@ def main():
                     text_print.tprint(screen, "Platform B ↓")
                     arduinoB.write(b'platB,0\n')
             # 帽子事件 / Hat events
-            elif pygame.event == pygame.JOYHATMOTION:
-                hat = event.value()  # 直接取 event.value 即 (x,y)
+            elif event.type == pygame.JOYHATMOTION:
+                hat = event.value  # 直接取 event.value 即 (x,y)
                 if hat == (0, 1):
                     text_print.tprint(screen, "Hat → Base of Platform A ↑")
                     arduinoB.write(b'platAbase,1\n')

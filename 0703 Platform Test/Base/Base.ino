@@ -46,7 +46,7 @@ void setup() {
 }
 
 // 步進馬達 5 圈正/反轉
-void stepAllMotors(long revCount) {
+void stepAllMotors_UP(long revCount) {
   long steps = stepsPerRevolution * revCount;
   // 正轉
   digitalWrite(dirPinX, HIGH);
@@ -88,6 +88,28 @@ void stepAllMotors(long revCount) {
 
   delay(1000);
 }
+void stepAllMotors_Down(long revCount) {
+  long steps = stepsPerRevolution * revCount;
+    // 反轉
+  digitalWrite(dirPinX, LOW);
+  digitalWrite(dirPinY, LOW);
+  digitalWrite(dirPinZ, LOW);
+  digitalWrite(dirPinE, LOW);
+  for (long i = 0; i < steps; i++) {
+    digitalWrite(stepPinX, HIGH);
+    digitalWrite(stepPinY, HIGH);
+    digitalWrite(stepPinZ, HIGH);
+    digitalWrite(stepPinE, HIGH);
+    delayMicroseconds(stepDelay);
+    digitalWrite(stepPinX, LOW);
+    digitalWrite(stepPinY, LOW);
+    digitalWrite(stepPinZ, LOW);
+    digitalWrite(stepPinE, LOW);
+    delayMicroseconds(stepDelay);
+  }
+
+  delay(1000);
+}
 
 // 隨機控制所有 16 通道伺服
 void randomServoCycle() {
@@ -101,7 +123,53 @@ void randomServoCycle() {
   }
 }
 
+void randomServoCycle_reset() {
+    for (uint8_t ch = 0; ch < 16; ch++) {
+    int pulse = map(0, 0, 270, SERVOMIN, SERVOMAX);  // 0 度位置
+    pwm.setPWM(ch, 0, pulse);
+    Serial.print("Reset Channel "); Serial.println(ch);
+    delay(500);  // 可調整速度
+  }
+}
+
+void processMotorData(data) {
+  // 解析數據 (格式: platA,1)
+  int commaPos = data.indexOf(',');
+
+  String Platform = data.substring(0, commaPos);
+  String value = data.substring(commaPos+1);
+
+  if (command == "platA") {
+    if (value == "1") {
+      stepAllMotors_UP(5);
+    } else if (value == "0") {
+      stepAllMotors_Down(5);
+    }
+  } else if (command == "platB") {
+    if (value == "1") {
+      stepAllMotors_UP(5);
+    } else if (value == "0") {
+      stepAllMotors_Down(5);
+    }
+  } else if (command == "platAbase") {
+    if (value == "1") {
+      randomServoCycle();
+    }
+  } else if (command == "platBbase") {
+    if (value == "1") {
+      randomServoCycle();
+    }
+  } else if (command == "reset") {
+    
+  }
+}
+
 void loop() {
+  if (Serial.available() > 0) {
+    String data = Serial.readStringUntil('\n');
+    data.trim();  // 移除換行符號或空白
+    processMotorData(data);
+  }
   // 1) 步進馬達運行：正/反轉 5 圈
   // 1) Steppers: 5 revolutions forward & backward
   stepAllMotors(5);
