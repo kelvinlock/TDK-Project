@@ -87,29 +87,29 @@ def main():
                 # Platform A: X (2) increase, Y (3) decrease
                 if event.button == 2:  # X
                     text_print.tprint(screen, "Platform A ↑")
-                    arduinoB.write(b'platA,1')
+                    arduinoB.write(b'platA,1\n')
                 elif event.button == 3:  # Y
                     text_print.tprint(screen, "Platform A ↓")
-                    arduinoB.write(b'platA,0')
+                    arduinoB.write(b'platA,0\n')
                     # Platform B: A (0) increase, B (1) decrease
                 elif event.button == 0:  # A
                     text_print.tprint(screen, "Platform B ↑")
-                    arduinoB.write(b'platB,1')
+                    arduinoB.write(b'platB,1\n')
                 elif event.button == 1:  # B
                     text_print.tprint(screen, "Platform B ↓")
-                    arduinoB.write(b'platB,0')
+                    arduinoB.write(b'platB,0\n')
             # 帽子事件 / Hat events
             elif pygame.event == pygame.JOYHATMOTION:
                 hat = event.value()  # 直接取 event.value 即 (x,y)
                 if hat == (0, 1):
                     text_print.tprint(screen, "Hat → Base of Platform A ↑")
-                    arduinoB.write(b'platAbase,1')
+                    arduinoB.write(b'platAbase,1\n')
                 elif hat == (0, -1):
                     text_print.tprint(screen, "Hat → Base of Platform B ↑")
-                    arduinoB.write(b'platBbase,1')
+                    arduinoB.write(b'platBbase,1\n')
                 elif hat == (1, 0):
                     text_print.tprint(screen, "Hat → Reset")
-                    arduinoB.write(b'reset')
+                    arduinoB.write(b'reset\n')
 
         # Drawing step
         screen.fill((255, 255, 255))
