@@ -182,7 +182,7 @@ def main():
         pygame.display.flip()
         clock.tick(30)  # 控制更新速率
 
-    if arduinoA and arduinoA.is_open and arduinoB and arduinoB.is_open:
+    if arduinoA and arduinoA.is_open or arduinoB and arduinoB.is_open:
         arduinoA.close()
         arduinoB.close()
     pygame.quit()
