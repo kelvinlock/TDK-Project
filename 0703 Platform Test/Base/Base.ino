@@ -16,7 +16,6 @@ const unsigned int stepDelay = 800;       // 脈衝延遲 (微秒)
 
 void setup() {
   Serial.begin(9600);
-  Wire.begin();
 
   // 初始化步進馬達腳位
   pinMode(stepPinX, OUTPUT);
