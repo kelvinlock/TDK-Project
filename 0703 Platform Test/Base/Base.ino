@@ -1,6 +1,6 @@
 // ---- Stepper Motor 設定 ----
 // 定義步進與方向腳位
-const int EN_PIN   = 8
+const int EN_PIN   = 8;
 const int stepPinX = 2;     # 平臺A
 const int dirPinX  = 5;
 const int stepPinY = 3;     # 平臺A
@@ -120,6 +120,8 @@ void processMotorData(String data) {
       stepAllMotors_PlatB_DOWN(5);
     }
   }
+  delay(2000);
+  digitalWrite(EN_PIN, HIGH);
 }
 
 void loop() {
