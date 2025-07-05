@@ -1,9 +1,3 @@
-// Merged Arduino Sketch: Stepper Motors & PCA9685 Servos
-// 合併 Arduino 草圖：步進馬達與 PCA9685 伺服器
-
-#include <Wire.h>
-#include <Adafruit_PWMServoDriver.h>
-
 // ---- Stepper Motor 設定 ----
 // 定義步進與方向腳位
 const int stepPinX = 2;     # 平臺A
