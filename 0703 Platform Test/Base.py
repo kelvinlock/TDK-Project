@@ -139,7 +139,6 @@ def main():
             # Only show axes information
             axes = joystick.get_numaxes()
             text_print.tprint(screen, f"Number of axes: {axes}")
-            text_print.tprint(screen, f"Press and hold the buttons")
             text_print.indent()
 
             # 取得左搖桿Y軸值（Xbox手柄通常為axis 1）
