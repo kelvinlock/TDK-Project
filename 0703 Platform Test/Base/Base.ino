@@ -170,11 +170,4 @@ void loop() {
     data.trim();  // 移除換行符號或空白
     processMotorData(data);
   }
-  // 1) 步進馬達運行：正/反轉 5 圈
-  // 1) Steppers: 5 revolutions forward & backward
-  stepAllMotors(5);
-
-  // 2) 伺服隨機擺動
-  // 2) Servos: random sweep on all channels
-  randomServoCycle();
 }
