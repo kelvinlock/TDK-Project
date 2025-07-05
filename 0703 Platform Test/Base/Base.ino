@@ -1,13 +1,13 @@
 // ---- Stepper Motor 設定 ----
 // 定義步進與方向腳位
 const int EN_PIN   = 8;
-const int stepPinX = 2;     # 平臺A
+const int stepPinX = 2;     // 平臺A
 const int dirPinX  = 5;
-const int stepPinY = 3;     # 平臺A
+const int stepPinY = 3;     // 平臺A
 const int dirPinY  = 6;
-const int stepPinZ = 4;     # 平臺B
+const int stepPinZ = 4;     // 平臺B
 const int dirPinZ  = 7;
-const int stepPinE = 12;    # 平臺B
+const int stepPinE = 12;    // 平臺B
 const int dirPinE  = 13;
 
 // 步數與延遲
