@@ -94,20 +94,24 @@ void stepAllMotors_PlatB_DOWN(long revCount) {
   delay(1000);
 }
 
-void processMotorData(data) {
+void processMotorData(String data) {
   // 解析數據 (格式: platA,1)
   int commaPos = data.indexOf(',');
+  if (commaPos == -1) {
+    Serial.println("Error: Invalid data format");
+    return;
+  }
 
   String Platform = data.substring(0, commaPos);
   String value = data.substring(commaPos+1);
 
-  if (command == "platA") {
+  if ( Platform == "platA") {
     if (value == "1") {
       stepAllMotors_platA_UP(5);
     } else if (value == "0") {
       stepAllMotors_PlatA_DOWN(5);
     }
-  } else if (command == "platB") {
+  } else if ( Platform == "platB") {
     if (value == "1") {
       stepAllMotors_platB_UP(5);
     } else if (value == "0") {
