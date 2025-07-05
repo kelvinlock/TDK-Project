@@ -1,5 +1,6 @@
 // ---- Stepper Motor 設定 ----
 // 定義步進與方向腳位
+const int EN_PIN   = 8
 const int stepPinX = 2;     # 平臺A
 const int dirPinX  = 5;
 const int stepPinY = 3;     # 平臺A
@@ -18,6 +19,7 @@ void setup() {
   Serial.begin(9600);
 
   // 初始化步進馬達腳位
+  pinMode(EN_PIN, OUTPUT);
   pinMode(stepPinX, OUTPUT);
   pinMode(dirPinX, OUTPUT);
   pinMode(stepPinY, OUTPUT);
@@ -94,6 +96,7 @@ void stepAllMotors_PlatB_DOWN(long revCount) {
 }
 
 void processMotorData(String data) {
+  digitalWrite(EN_PIN, LOW);
   // 解析數據 (格式: platA,1)
   int commaPos = data.indexOf(',');
   if (commaPos == -1) {
