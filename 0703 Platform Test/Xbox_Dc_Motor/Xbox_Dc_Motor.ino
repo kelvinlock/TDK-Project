@@ -1,3 +1,11 @@
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
+
+// ---- Servo Driver 設定 ----
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
+#define SERVOMIN 150  // 最小脈寬 (out of 4096)
+#define SERVOMAX 600  // 最大脈寬
+
 struct Motor {
     int forwardPin;
     int backwardPin;
@@ -62,4 +70,23 @@ void processMotorData(String data) {
             }
         }
     }
+}
+void randomServoCycle() {
+  for (uint8_t ch = 0; ch < 16; ch++) {
+    int angle = random(0, 271);
+    int pulse = map(angle, 0, 270, SERVOMIN, SERVOMAX);
+    pwm.setPWM(ch, 0, pulse);
+    Serial.print("Channel "); Serial.print(ch);
+    Serial.print(" -> Angle: "); Serial.println(angle);
+    delay(1500);
+  }
+}
+
+void randomServoCycle_reset() {
+    for (uint8_t ch = 0; ch < 16; ch++) {
+    int pulse = map(0, 0, 270, SERVOMIN, SERVOMAX);  // 0 度位置
+    pwm.setPWM(ch, 0, pulse);
+    Serial.print("Reset Channel "); Serial.println(ch);
+    delay(500);  // 可調整速度
+  }
 }
