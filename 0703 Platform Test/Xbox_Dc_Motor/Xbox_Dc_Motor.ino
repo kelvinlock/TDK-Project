@@ -13,10 +13,10 @@ struct Motor {
 };
 
 Motor motors[4] = {
-    {2, 3, 6},   // 左前輪 (A)
-    {4, 5, 6},   // 右前輪 (B)
-    {7, 9, 6},   // 左後輪 (C)
-    {8, 10, 6}   // 右後輪 (D)
+    {26, 28, 2},   // 左前輪 (A)
+    {27, 29, 3},   // 右前輪 (B)
+    {30, 32, 4},   // 左後輪 (C)
+    {31, 33, 5}   // 右後輪 (D)
 };
 
 void setup() {
@@ -26,6 +26,8 @@ void setup() {
         pinMode(motors[i].backwardPin, OUTPUT);
         pinMode(motors[i].speedPin, OUTPUT);
     }
+    pwm.begin();
+    pwm.setPWMFreq(60);  // 建議頻率 50~60Hz
 }
 
 void loop() {
@@ -36,27 +38,27 @@ void loop() {
 }
 
 void processMotorData(String data) {
-    String wheelData[4];
+    String Data[5];
     int index = 0;
 
-    // 解析數據 (格式: "1,200:0,150:1,100:0,255")
-    while (data.length() > 0 && index < 4) {
+    // 解析數據 (格式: "1,150:0,120:1,100:0,0:platAbase,1\n")
+    while (data.length() > 0 && index < 5) {
         int colonPos = data.indexOf(':');
         if (colonPos == -1) {
-            wheelData[index++] = data;
+            Data[index++] = data;
             data = "";
         } else {
-            wheelData[index++] = data.substring(0, colonPos);
+            Data[index++] = data.substring(0, colonPos);
             data = data.substring(colonPos+1);
         }
     }
 
     // 控制每個馬達
     for (int i = 0; i < 4; i++) {
-        int commaPos = wheelData[i].indexOf(',');
+        int commaPos = Data[i].indexOf(',');
         if (commaPos != -1) {
-            int dir = wheelData[i].substring(0, commaPos).toInt();
-            int speed = wheelData[i].substring(commaPos+1).toInt();
+            int dir = Data[i].substring(0, commaPos).toInt();
+            int speed = Data[i].substring(commaPos+1).toInt();
 
             if (speed > 0){
                 digitalWrite(motors[i].forwardPin, dir);
@@ -70,23 +72,31 @@ void processMotorData(String data) {
             }
         }
     }
-}
-void randomServoCycle() {
-  for (uint8_t ch = 0; ch < 16; ch++) {
-    int angle = random(0, 271);
-    int pulse = map(angle, 0, 270, SERVOMIN, SERVOMAX);
-    pwm.setPWM(ch, 0, pulse);
-    Serial.print("Channel "); Serial.print(ch);
-    Serial.print(" -> Angle: "); Serial.println(angle);
-    delay(1500);
-  }
+    int commaPos = Data[4].indexOf(',');
+    if (commaPos != -1) {
+        String platform = Data[4].substring(0, commaPos);
+        String valStr = Data[4].substring(commaPos+1);
+        bool val = (valStr == "1");
+        Servo(platform, val == "1");
+    }
 }
 
-void randomServoCycle_reset() {
-    for (uint8_t ch = 0; ch < 16; ch++) {
-    int pulse = map(0, 0, 270, SERVOMIN, SERVOMAX);  // 0 度位置
-    pwm.setPWM(ch, 0, pulse);
-    Serial.print("Reset Channel "); Serial.println(ch);
-    delay(500);  // 可調整速度
-  }
+void Servo(String platform,bool up) {
+    if (platform == "platAbase" || platform == "platBbase") {
+        for (uint8_t ch = 0; ch < 16; ch++) {
+            int angle = random(0, 271);
+            int pulse = map(angle, 0, 270, SERVOMIN, SERVOMAX);
+            pwm.setPWM(ch, 0, pulse);
+            Serial.print("Channel "); Serial.print(ch);
+            Serial.print(" -> Angle: "); Serial.println(angle);
+            delay(500);
+        }
+    } else {
+        for (uint8_t ch = 0; ch < 16; ch++) {
+            int pulse = map(0, 0, 270, SERVOMIN, SERVOMAX);  // 0 度位置
+            pwm.setPWM(ch, 0, pulse);
+            Serial.print("Reset Channel "); Serial.println(ch);
+            delay(500);  // 可調整速度
+        }
+    }
 }

@@ -53,6 +53,7 @@ def calculate_mecanum_speeds(x, y):
 
 
 def main():
+    global Servo
     screen = pygame.display.set_mode((500, 700))
     pygame.display.set_caption("Joystick Axes Display")
 
@@ -103,13 +104,13 @@ def main():
                 hat = event.value  # 直接取 event.value 即 (x,y)
                 if hat == (0, 1):
                     text_print.tprint(screen, "Hat → Base of Platform A ↑")
-                    arduinoB.write(b'platAbase,1\n')
+                    Servo = "platAbase,1"
                 elif hat == (0, -1):
                     text_print.tprint(screen, "Hat → Base of Platform B ↑")
-                    arduinoB.write(b'platBbase,1\n')
+                    Servo = "platBbase,1"
                 elif hat == (1, 0):
                     text_print.tprint(screen, "Hat → Reset")
-                    arduinoB.write(b'reset\n')
+                    Servo = "reset,0"
 
         # Drawing step
         screen.fill((255, 255, 255))
@@ -173,7 +174,9 @@ def main():
                         data_packet += f"{direction},{abs(speed)}:"
                     try:
                         text_print.tprint(screen, data_packet)
-                        arduinoA.write(data_packet[:-1].encode() + b'\n')
+                        Send_str = f"{data_packet}:{Servo}\n"
+                        # 最後送出
+                        arduinoA.write(Send_str.encode())
                     except serial.SerialException as e:
                         print(f"Send error: {e}")
             except pygame.error:
