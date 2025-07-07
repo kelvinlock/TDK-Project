@@ -141,7 +141,7 @@ def main():
                     data_packet = ""
                     for speed in wheel_speeds:
                         direction = 1 if speed >= 0 else 0
-                        data_packet += f"{direction}"
+                        data_packet += f"{direction}:"
 
                     Send_str = f"{data_packet}:{Servo}\n"
                 text_print.tprint(screen, Send_str)

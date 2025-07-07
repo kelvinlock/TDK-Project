@@ -36,12 +36,15 @@ void XboxDcMotorControl::processMotorData(const String& data) {
         }
     }
 
-    for (int i = 0; i < 4; i++) {
-        if (Data[i] == "stop") {
+    if (Data[0] == "stop") {
+        for (int i = 0; i < 4; i++) {
             digitalWrite(motors[i].forwardPin, LOW);
             digitalWrite(motors[i].backwardPin, LOW);
             analogWrite(motors[i].speedPin, 0);
-        } else {
+        }
+    } else {
+        // 這裡才根據資料給每個馬達方向與速度
+        for (int i = 0; i < 4; i++) {
             digitalWrite(motors[i].forwardPin, Data[i].toInt());
             digitalWrite(motors[i].backwardPin, !Data[i].toInt());
             analogWrite(motors[i].speedPin, speed);
