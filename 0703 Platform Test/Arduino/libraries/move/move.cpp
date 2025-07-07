@@ -23,6 +23,7 @@ void XboxDcMotorControl::processMotorData(const String& data) {
     String Data[5];
     int index = 0;
     String input = data;
+    int speed = 200;
 
     while (input.length() > 0 && index < 5) {
         int colonPos = input.indexOf(':');
@@ -36,19 +37,14 @@ void XboxDcMotorControl::processMotorData(const String& data) {
     }
 
     for (int i = 0; i < 4; i++) {
-        int commaPos = Data[i].indexOf(',');
-        if (commaPos != -1) {
-            int dir = Data[i].substring(0, commaPos).toInt();
-            int speed = Data[i].substring(commaPos + 1).toInt();
-            if (speed > 0) {
-                digitalWrite(motors[i].forwardPin, dir);
-                digitalWrite(motors[i].backwardPin, !dir);
-                analogWrite(motors[i].speedPin, speed);
-            } else {
-                digitalWrite(motors[i].forwardPin, LOW);
-                digitalWrite(motors[i].backwardPin, LOW);
-                analogWrite(motors[i].speedPin, 0);
-            }
+        if (speed > 0) {
+            digitalWrite(motors[i].forwardPin, Data[i].toInt());
+            digitalWrite(motors[i].backwardPin, !Data[i].toInt());
+            analogWrite(motors[i].speedPin, speed);
+        } else {
+            digitalWrite(motors[i].forwardPin, 0);
+            digitalWrite(motors[i].backwardPin, 0);
+            analogWrite(motors[i].speedPin, speed);
         }
     }
     int commaPos = Data[4].indexOf(',');
