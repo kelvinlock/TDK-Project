@@ -36,6 +36,7 @@ void XboxDcMotorControl::processMotorData(const String& data) {
         }
     }
 
+    // 全部停止：只要第一段是"stop"
     if (Data[0] == "stop") {
         for (int i = 0; i < 4; i++) {
             digitalWrite(motors[i].forwardPin, LOW);
@@ -50,6 +51,7 @@ void XboxDcMotorControl::processMotorData(const String& data) {
             analogWrite(motors[i].speedPin, speed);
         }
     }
+    // 後面servo指令部分維持不變
     int commaPos = Data[4].indexOf(',');
     if (commaPos != -1) {
         String platform = Data[4].substring(0, commaPos);
@@ -60,21 +62,30 @@ void XboxDcMotorControl::processMotorData(const String& data) {
 }
 
 void XboxDcMotorControl::servo(const String& platform, bool up) {
-    if (platform == "platAbase" || platform == "platBbase") {
-        for (uint8_t ch = 0; ch < 16; ch++) {
-            int angle = random(0, 271);
-            int pulse = map(angle, 0, 270, SERVOMIN, SERVOMAX);
-            pwm.setPWM(ch, 0, pulse);
-            Serial.print("Channel "); Serial.print(ch);
-            Serial.print(" -> Angle: "); Serial.println(angle);
-            delay(500);
-        }
+    const int minAngle = 0;
+    const int maxAngle = 180;
+    int targetAngle = up ? 90 : 0;
+    int pulse = map(targetAngle, minAngle, maxAngle, SERVOMIN, SERVOMAX);
+
+    if (platform == "platAbase") {
+        // 只控制 pin 14 與 pin 15 / Only control servo on channel 14 and 15
+        pwm.setPWM(14, 0, pulse);
+        Serial.print("Channel 14 -> Angle: "); Serial.println(targetAngle);
+        pwm.setPWM(15, 0, pulse);
+        Serial.print("Channel 15 -> Angle: "); Serial.println(targetAngle);
+    } else if (platform == "platBbase") {
+        // 只控制 pin 0 / Only control servo on channel 0
+        pwm.setPWM(0, 0, pulse);
+        Serial.print("Channel 0 -> Angle: "); Serial.println(targetAngle);
     } else {
-        for (uint8_t ch = 0; ch < 16; ch++) {
-            int pulse = map(0, 0, 270, SERVOMIN, SERVOMAX);
-            pwm.setPWM(ch, 0, pulse);
-            Serial.print("Reset Channel "); Serial.println(ch);
-            delay(500);
-        }
+        // 歸零全部 / Reset all
+        int resetPulse = map(0, minAngle, maxAngle, SERVOMIN, SERVOMAX);
+        pwm.setPWM(0, 0, resetPulse);
+        Serial.print("Reset Channel 0\n");
+        pwm.setPWM(14, 0, resetPulse);
+        Serial.print("Reset Channel 14\n");
+        pwm.setPWM(15, 0, resetPulse);
+        Serial.print("Reset Channel 15\n");
     }
 }
+
