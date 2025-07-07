@@ -143,7 +143,7 @@ def main():
                         direction = 1 if speed >= 0 else 0
                         data_packet += f"{direction}:"
 
-                    Send_str = f"{data_packet}:{Servo}\n"
+                    Send_str = f"{data_packet} {Servo}\n"
                 text_print.tprint(screen, Send_str)
                 if arduinoA and arduinoA.is_open:
                     arduinoA.write(Send_str.encode())
