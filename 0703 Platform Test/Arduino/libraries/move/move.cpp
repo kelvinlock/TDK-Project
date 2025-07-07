@@ -23,7 +23,7 @@ void XboxDcMotorControl::processMotorData(const String& data) {
     String Data[5];
     int index = 0;
     String input = data;
-    int speed = 200;
+    int speed = 70;
 
     while (input.length() > 0 && index < 5) {
         int colonPos = input.indexOf(':');
