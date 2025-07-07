@@ -26,32 +26,6 @@ class TextPrint:
     def unindent(self):
         self.x -= 10
 
-
-def map_axis_to_speed(axis_value, deadzone=0.1):
-    """將搖桿值(-1.0~1.0)映射到-255~255，加入死區處理"""
-    if abs(axis_value) < deadzone:
-        return 0
-    return int(axis_value * 255)
-
-
-def calculate_mecanum_speeds(x, y):
-    """計算麥克納姆輪四輪速度"""
-    # 麥克納姆輪運動學公式
-    wheel_speeds = [
-        y + x,  # 左前輪 (A)
-        y - x,  # 右前輪 (B)
-        y - x,  # 左後輪 (C)
-        y + x  # 右後輪 (D)
-    ]
-
-    # 歸一化處理
-    max_speed = max(abs(s) for s in wheel_speeds)
-    if max_speed > 255:
-        wheel_speeds = [int(s * 255 / max_speed) for s in wheel_speeds]
-
-    return wheel_speeds
-
-
 def main():
     global Servo
     screen = pygame.display.set_mode((500, 700))
