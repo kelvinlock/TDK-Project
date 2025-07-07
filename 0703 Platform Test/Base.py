@@ -28,6 +28,8 @@ class TextPrint:
 
 def main():
     global Servo
+    Servo = "reset,0"
+
     screen = pygame.display.set_mode((500, 700))
     pygame.display.set_caption("Joystick Axes Display")
 
