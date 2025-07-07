@@ -58,7 +58,7 @@ def main():
     pygame.display.set_caption("Joystick Axes Display")
 
     try:
-        arduinoA = serial.Serial(port="COM6", baudrate=9600, timeout=1)
+        arduinoA = serial.Serial(port="COM3", baudrate=9600, timeout=1)
         arduinoB = serial.Serial(port="COM4", baudrate=9600, timeout=1)
         time.sleep(2)  # 等待串口初始化
     except Exception as e:
@@ -145,40 +145,27 @@ def main():
             # 取得左搖桿Y軸值（Xbox手柄通常為axis 1）
             try:
                 # 獲取搖桿值 (X軸和Y軸)
-                x_axis = joystick.get_axis(0)  # 左搖桿X軸
-                y_axis = -joystick.get_axis(1)  # 左搖桿Y軸 (反向)
+                x_axis = joystick.get_axis(0)
+                y_axis = -joystick.get_axis(1)
 
-                # 計算速度
-                x_speed = map_axis_to_speed(x_axis)
-                y_speed = map_axis_to_speed(y_axis)
-                wheel_speeds = calculate_mecanum_speeds(x_speed, y_speed)
+                # 只根據正負決定方向，不處理速度
+                wheel_speeds = [
+                    y_axis + x_axis,  # A
+                    y_axis - x_axis,  # B
+                    y_axis - x_axis,  # C
+                    y_axis + x_axis  # D
+                ]
 
-                # 顯示數據
-                text_print.tprint(screen, f"X: {x_axis:.2f} -> {x_speed}")
-                text_print.tprint(screen, f"PWM value: {x_speed}")
-                text_print.tprint(screen, f"Y: {y_axis:.2f} -> {y_speed}")
-                text_print.tprint(screen, f"PWM value: {y_speed}")
+                # 只發送方向，不發送速度
+                data_packet = ""
+                for speed in wheel_speeds:
+                    direction = 1 if speed >= 0 else 0
+                    data_packet += f"{direction}:"
 
-                for i, speed in enumerate(wheel_speeds):
-                    text_print.tprint(screen, f"Wheel {i}: {speed}")
-
-                hats = joystick.get_numhats()
-                text_print.tprint(screen, f"Number of hats: {hats}")
-                text_print.indent()
-
-                # 發送數據到Arduino (格式: A_DIR,A_SPD:B_DIR,B_SPD:...)
+                Send_str = f"{data_packet}:{Servo}\n"
+                text_print.tprint(screen, Send_str)
                 if arduinoA and arduinoA.is_open:
-                    data_packet = ""
-                    for speed in wheel_speeds:
-                        direction = 1 if speed >= 0 else 0
-                        data_packet += f"{direction},{abs(speed)}:"
-                    try:
-                        text_print.tprint(screen, data_packet)
-                        Send_str = f"{data_packet}:{Servo}\n"
-                        # 最後送出
-                        arduinoA.write(Send_str.encode())
-                    except serial.SerialException as e:
-                        print(f"Send error: {e}")
+                    arduinoA.write(Send_str.encode())
             except pygame.error:
                 text_print.tprint(screen, "錯誤: 無法讀取搖桿軸值")
 
