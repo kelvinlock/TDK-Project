@@ -1,6 +1,6 @@
 #include "move.h"
 
-XboxDcMotorControl::XboxDcMotorControl() 
+XboxDcMotorControl::XboxDcMotorControl()
     : pwm(Adafruit_PWMServoDriver())
 {
     motors[0] = {26, 28, 2};  // 左前輪 (A)
@@ -37,13 +37,13 @@ void XboxDcMotorControl::processMotorData(const String& data) {
     }
 
     for (int i = 0; i < 4; i++) {
-        if (speed > 0) {
+        if (Data[i] == "stop") {
+            digitalWrite(motors[i].forwardPin, LOW);
+            digitalWrite(motors[i].backwardPin, LOW);
+            analogWrite(motors[i].speedPin, 0);
+        } else {
             digitalWrite(motors[i].forwardPin, Data[i].toInt());
             digitalWrite(motors[i].backwardPin, !Data[i].toInt());
-            analogWrite(motors[i].speedPin, speed);
-        } else {
-            digitalWrite(motors[i].forwardPin, 0);
-            digitalWrite(motors[i].backwardPin, 0);
             analogWrite(motors[i].speedPin, speed);
         }
     }

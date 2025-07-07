@@ -120,25 +120,30 @@ def main():
 
             # 取得左搖桿Y軸值（Xbox手柄通常為axis 1）
             try:
+                deadzone = 0.1
                 # 獲取搖桿值 (X軸和Y軸)
                 x_axis = joystick.get_axis(0)
                 y_axis = -joystick.get_axis(1)
 
-                # 只根據正負決定方向，不處理速度
-                wheel_speeds = [
-                    y_axis + x_axis,  # A
-                    y_axis - x_axis,  # B
-                    y_axis - x_axis,  # C
-                    y_axis + x_axis  # D
-                ]
+                if abs(x_axis) < deadzone and abs(y_axis) < deadzone:
+                    # 代表搖桿沒動，發送停止指令
+                    Send_str = f"stop:{Servo}\n"
+                else:
+                    # 正常方向資料
+                    wheel_speeds = [
+                        y_axis + x_axis,  # A
+                        y_axis - x_axis,  # B
+                        y_axis - x_axis,  # C
+                        y_axis + x_axis  # D
+                    ]
 
-                # 只發送方向，不發送速度
-                data_packet = ""
-                for speed in wheel_speeds:
-                    direction = 1 if speed >= 0 else 0
-                    data_packet += f"{direction}:"
+                    # 只發送方向，不發送速度
+                    data_packet = ""
+                    for speed in wheel_speeds:
+                        direction = 1 if speed >= 0 else 0
+                        data_packet += f"{direction}"
 
-                Send_str = f"{data_packet}:{Servo}\n"
+                    Send_str = f"{data_packet}:{Servo}\n"
                 text_print.tprint(screen, Send_str)
                 if arduinoA and arduinoA.is_open:
                     arduinoA.write(Send_str.encode())
