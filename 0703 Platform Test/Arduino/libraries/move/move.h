@@ -1,5 +1,5 @@
-#ifndef Move_H
-#define Move_H
+#ifndef MOVE_H
+#define MOVE_H
 
 #include <Arduino.h>
 #include <Adafruit_PWMServoDriver.h>
@@ -11,6 +11,12 @@ struct Motor {
     int forwardPin;
     int backwardPin;
     int speedPin;
+};
+
+struct ServoConfig {
+    int channel;
+    int startAngle; // 原點（起始角度）
+    int endAngle;   // 重點（終點角度）
 };
 
 class XboxDcMotorControl {
