@@ -27,40 +27,12 @@ void XboxDcMotorControl::begin() {
     pwm.setPWMFreq(60);
 }
 
-void XboxDcMotorControl::processMotorData(const String& data) {
-    String Data[5];
-    int index = 0;
-    String input = data;
-    int speed = 70;
-
-    while (input.length() > 0 && index < 5) {
-        int colonPos = input.indexOf(':');
-        if (colonPos == -1) {
-            Data[index++] = input;
-            input = "";
-        } else {
-            Data[index++] = input.substring(0, colonPos);
-            input = input.substring(colonPos + 1);
-        }
-    }
-
-    for (int i = 0; i < 4; i++) {
-        int val = Data[i].toInt();
-        if (val == 1) {
-            digitalWrite(motors[i].forwardPin, HIGH);
-            digitalWrite(motors[i].backwardPin, LOW);
-            analogWrite(motors[i].speedPin, speed);
-        } else if (val == -1) {
-            digitalWrite(motors[i].forwardPin, LOW);
-            digitalWrite(motors[i].backwardPin, HIGH);
-            analogWrite(motors[i].speedPin, speed);
-        } else { // val == 0
-            digitalWrite(motors[i].forwardPin, LOW);
-            digitalWrite(motors[i].backwardPin, LOW);
-            analogWrite(motors[i].speedPin, 0);
-        }
-    }
+void XboxDcMotorControl::setMotor(int index, int direction, int speed) {
+    digitalWrite(motors[index].forwardPin, direction == 1 ? HIGH : LOW);
+    digitalWrite(motors[index].backwardPin, direction == -1 ? HIGH : LOW);
+    analogWrite(motors[index].speedPin, speed);
 }
+
 initial, final, bool final or initial
 void XboxDcMotorControl::servo(const String& platform, bool up) {
     // 查找需要控制的servo编号
