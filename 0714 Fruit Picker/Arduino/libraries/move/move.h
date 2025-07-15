@@ -23,7 +23,7 @@ class XboxDcMotorControl {
 public:
     XboxDcMotorControl();
     void begin();
-    void processMotorData(const String& data);
+    void setMotor(int index, int direction, int speed);
     void servo(const String& platform, bool up);
 
 private:
