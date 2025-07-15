@@ -28,12 +28,21 @@ void XboxDcMotorControl::begin() {
 }
 
 void XboxDcMotorControl::setMotor(int index, int direction, int speed) {
-    digitalWrite(motors[index].forwardPin, direction == 1 ? HIGH : LOW);
-    digitalWrite(motors[index].backwardPin, direction == -1 ? HIGH : LOW);
-    analogWrite(motors[index].speedPin, speed);
+    if (direction == 1) { // forward
+        digitalWrite(motors[index].forwardPin, HIGH);
+        digitalWrite(motors[index].backwardPin, LOW);
+        analogWrite(motors[index].speedPin, speed);
+    } else if (direction == -1) { // backward
+        digitalWrite(motors[index].forwardPin, LOW);
+        digitalWrite(motors[index].backwardPin, HIGH);
+        analogWrite(motors[index].speedPin, speed);
+    } else { // stop
+        digitalWrite(motors[index].forwardPin, LOW);
+        digitalWrite(motors[index].backwardPin, LOW);
+        analogWrite(motors[index].speedPin, 0);
+    }
 }
 
-initial, final, bool final or initial
 void XboxDcMotorControl::servo(const String& platform, bool up) {
     // 查找需要控制的servo编号
     if (platform == "platAbase") {
