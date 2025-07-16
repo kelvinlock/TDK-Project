@@ -104,9 +104,9 @@ def main():
                         arduinoB.write(b'doll:Retracts\n')
                 elif hat == (0, -1):    # ↓ fruit mode
                     if event.button == 2:   # X键，高度"低"模式 "60cm"
-                        arduinoB.write(b'fruit:height,50:increase,1:speed,520:force,1:\n')   # 步進馬達 stepper motor
+                        arduinoB.write(b'fruit,height=50,increase=1,speed=520,force=1:\n')   # 步進馬達 stepper motor
                     elif event.button == 3: # Y键，高度"中"模式 "100cm"
-                        arduinoB.write(b'fruit:height,90:increase,1:speed,520:force,1:\n')   # 步進馬達 stepper motor
+                        arduinoB.write(b'fruit:height,90:increase=1,speed=520,force=1:\n')   # 步進馬達 stepper motor
                     elif event.button == 1: # B键，高度"高"模式 "130cm"
                         arduinoB.write(b'fruit:height,120:increase,1:speed,520:force,1:\n')  # 步進馬達 stepper motor
                     elif event.button == 0: # A键，夾取柳丁
@@ -169,32 +169,76 @@ def main():
 
             # 取得左搖桿X、Y轴数据
             try:
+                # 死區設定，防止微小搖動產生誤動作
                 deadzone = 0.1
-                x_axis = joystick.get_axis(0)
-                y_axis = -joystick.get_axis(1)
+                # 取得左搖桿 X/Y 值
+                x_axis = joystick.get_axis(0)  # 左搖桿 X軸（左右）
+                y_axis = -joystick.get_axis(1)  # 左搖桿 Y軸（上下，取負數是符合直觀“上推為正”）
 
-                # 计算四个轮子的方向
+                # 計算四個輪子對應的移動量（方向+速度，理論上可以斜移、橫移）
                 wheel_speeds = [
-                    y_axis + x_axis,  # A
-                    y_axis - x_axis,  # B
-                    y_axis - x_axis,  # C
-                    y_axis + x_axis   # D
+                    y_axis + x_axis,  # 左前輪
+                    y_axis - x_axis,  # 右前輪
+                    y_axis - x_axis,  # 左後輪
+                    y_axis + x_axis  # 右後輪
                 ]
+
                 data_packet = ""
                 for speed in wheel_speeds:
                     if abs(speed) < deadzone:
-                        direction = 0  # 停止
+                        direction = 0  # 在死區內，停車
                     elif speed > 0:
-                        direction = 1  # 前进
+                        direction = 1  # 前進
                     else:
-                        direction = -1 # 后退
-                    data_packet += f"move:dir,{direction}:speed,70:on_off,True:"
-                Send_str = f"{data_packet}\n"
+                        direction = -1  # 後退
+                    # 組合通訊封包格式（每個輪子一筆指令）
+                    data_packet += f"move,dir={direction},speed=70,on_off=1:"
+
+                Send_str = f"{data_packet}\n"  # 加上換行，代表結束
+
+                # 畫面上顯示目前送出的封包（方便Debug/追蹤訊號）
                 text_print.tprint(screen, Send_str)
 
-                # 发送数据给arduinoA控制底盘（每次都发送四个轮子的方向）
-                if arduinoA and arduinoA.is_open:
+                # 傳送資料到 ArduinoB 控制底盤（四輪皆獨立送方向/速度）
+                if arduinoB and arduinoB.is_open:
                     arduinoB.write(Send_str.encode())
+
+                # 取得右搖桿 X/Y
+                right_x = joystick.get_axis(2)
+                right_y = -joystick.get_axis(3)
+
+                # 取得 LT（左下板機），RT（右下板機）數值
+                lt_value = joystick.get_axis(4)  # LT，代表「左擺動」
+                rt_value = joystick.get_axis(5)  # RT，代表「右擺動」
+
+                # 設定死區與最大轉速（將類比值轉成 0~255 的PWM轉速）
+                lt_speed = int(max(0, lt_value) * 255)
+                rt_speed = int(max(0, rt_value) * 255)
+
+                # 組合turn的封包（以四輪輪流檢查，目前只用第一輪有效，其餘作佯裝資料）
+                turn_packet = ""
+                if lt_speed > 0:
+                    # 只對第一顆輪子做左轉
+                    turn_packet = (
+                        f"turn:dir,1:speed,{lt_speed}:on_off,True:"  # 1=左轉
+                        f"turn:dir,0:speed,0:on_off,True:"
+                        f"turn:dir,0:speed,0:on_off,True:"
+                        f"turn:dir,0:speed,0:on_off,True:"
+                    )
+                elif rt_speed > 0:
+                    # 只對第二顆輪子做右轉
+                    turn_packet = (
+                        f"turn:dir,0:speed,0:on_off,True:"
+                        f"turn:dir,1:speed,{rt_speed}:on_off,True:"  # 1=右轉
+                        f"turn:dir,0:speed,0:on_off,True:"
+                        f"turn:dir,0:speed,0:on_off,True:"
+                    )
+
+                # 只要有 turn_packet 就傳送（代表有按下LT或RT）
+                if turn_packet:
+                    if arduinoB and arduinoB.is_open:
+                        arduinoB.write((turn_packet + "\n").encode())
+
             except pygame.error:
                 text_print.tprint(screen, "錯誤: 無法讀取搖桿軸值")
 
