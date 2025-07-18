@@ -45,6 +45,7 @@ def main():
 
     done = False
     hat = (0, 0)
+    fruit_force_on = False      # 初始沒激磁
     bucket_grabbed = False      # False=放開, True=抓住
     coffee_arm_open = False     # 咖啡手臂展開/收回狀態
     coffee_clamp_on = False     # 咖啡杯夾夾/放
@@ -102,13 +103,19 @@ def main():
                         arduinoB.write(b'doll:Expand\n')
                     elif event.button == 3: # Y键，機械臂：收回
                         arduinoB.write(b'doll:Retracts\n')
-                elif hat == (0, -1):    # ↓ fruit mode
+                elif hat == (0, -1):    # ↓ fruit mode 平台上升=>馬達正轉=>馬達反轉=>平台下降
                     if event.button == 2:   # X键，高度"低"模式 "60cm"
-                        arduinoB.write(b'fruit,height=50,increase=1,speed=520,force=1:\n')   # 步進馬達 stepper motor
+                        fruit_force_on = not fruit_force_on  # 切換狀態
+                        force_value = 1 if fruit_force_on else 0
+                        arduinoB.write(f'fruit,height=50,increase={force_value},speed=520,force={force_value}:\n'.encode())   # 步進馬達 stepper motor
                     elif event.button == 3: # Y键，高度"中"模式 "100cm"
-                        arduinoB.write(b'fruit:height,90:increase=1,speed=520,force=1:\n')   # 步進馬達 stepper motor
+                        fruit_force_on = not fruit_force_on  # 切換狀態
+                        force_value = 1 if fruit_force_on else 0
+                        arduinoB.write(f'fruit,height=90,increase={force_value},speed=520,force={force_value}:\n'.encode())   # 步進馬達 stepper motor
                     elif event.button == 1: # B键，高度"高"模式 "130cm"
-                        arduinoB.write(b'fruit:height,120:increase,1:speed,520:force,1:\n')  # 步進馬達 stepper motor
+                        fruit_force_on = not fruit_force_on  # 切換狀態
+                        force_value = 1 if fruit_force_on else 0
+                        arduinoB.write(f'fruit,height=120,increase={force_value},speed=520,force={force_value}:\n'.encode())  # 步進馬達 stepper motor
                     elif event.button == 0: # A键，夾取柳丁
                         arduinoB.write(b'fruit:dir,1:speed,100:on_off,True:\n')  # 直流馬達 DC motor
                 elif hat == (-1, 0):    # ← bucket & climb mode
@@ -171,41 +178,42 @@ def main():
             try:
                 # 死區設定，防止微小搖動產生誤動作
                 deadzone = 0.1
-                # 取得左搖桿 X/Y 值
-                x_axis = joystick.get_axis(0)  # 左搖桿 X軸（左右）
-                y_axis = -joystick.get_axis(1)  # 左搖桿 Y軸（上下，取負數是符合直觀“上推為正”）
+                # 左搖桿
+                x_axis = joystick.get_axis(0)  # 左搖桿 X（平移）
+                y_axis = -joystick.get_axis(1)  # 左搖桿 Y（前後）
 
-                # 計算四個輪子對應的移動量（方向+速度，理論上可以斜移、橫移）
+                # 右搖桿
+                right_x = joystick.get_axis(2)  # 右搖桿 X（旋轉）
+
+                # 機器人四輪計算 (Mecanum公式：直線＋旋轉)
                 wheel_speeds = [
-                    y_axis + x_axis,  # 左前輪
-                    y_axis - x_axis,  # 右前輪
-                    y_axis - x_axis,  # 左後輪
-                    y_axis + x_axis  # 右後輪
+                    y_axis + x_axis + right_x,  # 左前輪
+                    y_axis - x_axis - right_x,  # 右前輪
+                    y_axis - x_axis + right_x,  # 左後輪
+                    y_axis + x_axis - right_x  # 右後輪
                 ]
 
+                # 將各輪速度組成傳送資料（包含方向與速度）
                 data_packet = ""
                 for speed in wheel_speeds:
                     if abs(speed) < deadzone:
-                        direction = 0  # 在死區內，停車
+                        direction = 0  # 死區內，馬達停止
                     elif speed > 0:
-                        direction = 1  # 前進
+                        direction = 1  # 正轉（前進/右移/順時針）
                     else:
-                        direction = -1  # 後退
-                    # 組合通訊封包格式（每個輪子一筆指令）
-                    data_packet += f"move,dir={direction},speed=70,on_off=1:"
+                        direction = -1  # 反轉（後退/左移/逆時針）
 
-                Send_str = f"{data_packet}\n"  # 加上換行，代表結束
+                    # 組合傳送字串，每個輪子一組指令（速度可依實際需求調整）
+                    data_packet += f"move,dir={direction},speed={int(abs(speed) * 70)},on_off=1:"
 
-                # 畫面上顯示目前送出的封包（方便Debug/追蹤訊號）
+                Send_str = f"{data_packet}\n"  # 加上換行符號，表示一個封包結束
+
+                # 畫面上顯示傳送封包內容，方便除錯
                 text_print.tprint(screen, Send_str)
 
-                # 傳送資料到 ArduinoB 控制底盤（四輪皆獨立送方向/速度）
+                # 實際傳送資料到 ArduinoB
                 if arduinoB and arduinoB.is_open:
                     arduinoB.write(Send_str.encode())
-
-                # 取得右搖桿 X/Y
-                right_x = joystick.get_axis(2)
-                right_y = -joystick.get_axis(3)
 
                 # 取得 LT（左下板機），RT（右下板機）數值
                 lt_value = joystick.get_axis(4)  # LT，代表「左擺動」
@@ -220,18 +228,18 @@ def main():
                 if lt_speed > 0:
                     # 只對第一顆輪子做左轉
                     turn_packet = (
-                        f"turn:dir,1:speed,{lt_speed}:on_off,True:"  # 1=左轉
-                        f"turn:dir,0:speed,0:on_off,True:"
-                        f"turn:dir,0:speed,0:on_off,True:"
-                        f"turn:dir,0:speed,0:on_off,True:"
+                        f"turn,dir=1,speed={lt_speed},on_off=True:"  # 1=左轉
+                        f"turn,dir=0,speed=0,on_off=True:"
+                        f"turn,dir=0,speed=0,on_off=True:"
+                        f"turn,dir=0,speed=0,on_off=True:"
                     )
                 elif rt_speed > 0:
                     # 只對第二顆輪子做右轉
                     turn_packet = (
-                        f"turn:dir,0:speed,0:on_off,True:"
-                        f"turn:dir,1:speed,{rt_speed}:on_off,True:"  # 1=右轉
-                        f"turn:dir,0:speed,0:on_off,True:"
-                        f"turn:dir,0:speed,0:on_off,True:"
+                        f"turn,dir=0,speed=0,on_off=True:"
+                        f"turn,dir=1,speed={lt_speed},on_off=True:"   # 1=右轉
+                        f"turn,dir=0,speed=0,on_off=True:"
+                        f"turn,dir=0,speed=0,on_off=True:"
                     )
 
                 # 只要有 turn_packet 就傳送（代表有按下LT或RT）
