@@ -8,6 +8,8 @@ extern const int stepPinX;  // 1號馬達
 extern const int dirPinX;
 extern const int stepPinY;  // 2號馬達
 extern const int dirPinY;
+extern unsigned long magnetOnTime;
+extern bool holding;
 
 // 步數與延遲
 const uint8_t MICROSTEP = 1;  
@@ -22,14 +24,14 @@ struct Motor
 };
 
 class FruitPicker {
-public:
-    FruitPicker();
-    void begin();
-    void setDC(int index, int direction, int speed);
-    void setStepper(int height, bool increase, int speed, bool force);
+    public:
+        FruitPicker();
+        void begin();
+        void setDC(int index, int direction, int speed);
+        void setStepper(int height, bool increase, int speed, bool force);
 
-private:
-    Motor motors[2];
+    private:
+        Motor motors[2];
 };
 
 #endif

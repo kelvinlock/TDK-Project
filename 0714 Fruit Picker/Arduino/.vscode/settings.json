@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "C:/Users/Kelvin/PycharmProjects/TDK-Project/0714 Fruit Picker/Arduino/libraries/Adafruit_BusIO"
+    "cmake.sourceDirectory": "C:/Users/Kelvin/PycharmProjects/TDK-Project/0714 Fruit Picker/Arduino/libraries/Adafruit_BusIO",
+    "C_Cpp.errorSquiggles": "enabled"
 }

@@ -20,15 +20,15 @@ struct ServoConfig {
 };
 
 class XboxDcMotorControl {
-public:
-    XboxDcMotorControl();
-    void begin();
-    void setMotor(int index, int direction, int speed);
-    void servo(const String& platform, bool up);
+    public:
+        XboxDcMotorControl();
+        void begin();
+        void setMotor(int index, int direction, int speed);
+        void servo(const String& platform, bool up);
 
-private:
-    Adafruit_PWMServoDriver pwm;
-    Motor motors[4];
+    private:
+        Adafruit_PWMServoDriver pwm;
+        Motor motors[4];
 };
 
 #endif
