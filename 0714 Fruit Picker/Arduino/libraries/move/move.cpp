@@ -1,83 +1,38 @@
 #include "move.h"
 
-XboxDcMotorControl::XboxDcMotorControl()
-    : pwm(Adafruit_PWMServoDriver())
-{
+// 建構子：設定每顆馬達的腳位
+XboxDcMotorControl::XboxDcMotorControl() {
     motors[0] = {26, 28, 2};  // 左前輪 (A)
     motors[1] = {27, 29, 3};  // 右前輪 (B)
     motors[2] = {30, 32, 4};  // 左後輪 (C)
     motors[3] = {31, 33, 5};  // 右後輪 (D)
 }
 
-ServoConfig servos[] = {
-    {0, 5, 85},   // 第1顆：channel 0，原點5度，終點85度
-    {14, 7, 95},  // 第2顆：channel 14，原點7度，終點95度
-    {15, 4, 90},  // 第3顆：channel 15，原點4度，終點90度
-};
-
-int servoCount = sizeof(servos)/sizeof(servos[0]);
-
+// 初始化馬達腳位
 void XboxDcMotorControl::begin() {
     for(int i = 0; i < 4; i++) {
-        pinMode(motors[i].forwardPin, OUTPUT);
+        pinMode(motors[i].forwardPin, OUTPUT);   // 方向腳位設為輸出
         pinMode(motors[i].backwardPin, OUTPUT);
-        pinMode(motors[i].speedPin, OUTPUT);
+        pinMode(motors[i].speedPin, OUTPUT);     // 速度PWM腳位設為輸出
     }
-    pwm.begin();
-    pwm.setPWMFreq(60);
 }
 
+// 控制單一馬達運轉
+// index：馬達編號（0~3）
+// direction：1=前進, -1=後退, 0=停止
+// speed：速度（0~255，對應PWM值）
 void XboxDcMotorControl::setMotor(int index, int direction, int speed) {
-    if (direction == 1) { // forward
+    if (direction == 1) { // 前進
         digitalWrite(motors[index].forwardPin, HIGH);
         digitalWrite(motors[index].backwardPin, LOW);
         analogWrite(motors[index].speedPin, speed);
-    } else if (direction == -1) { // backward
+    } else if (direction == -1) { // 後退
         digitalWrite(motors[index].forwardPin, LOW);
         digitalWrite(motors[index].backwardPin, HIGH);
         analogWrite(motors[index].speedPin, speed);
-    } else { // stop
+    } else { // 停止
         digitalWrite(motors[index].forwardPin, LOW);
         digitalWrite(motors[index].backwardPin, LOW);
         analogWrite(motors[index].speedPin, 0);
-    }
-}
-
-void XboxDcMotorControl::servo(const String& platform, bool up) {
-    // 查找需要控制的servo编号
-    if (platform == "platAbase") {
-        // 控制 channel 14 & 15
-        for (int i = 0; i < servoCount; i++) {
-            if (servos[i].channel == 14 || servos[i].channel == 15) {
-                int angle = up ? servos[i].endAngle : servos[i].startAngle;
-                int pulse = map(angle, 0, 180, SERVOMIN, SERVOMAX);
-                pwm.setPWM(servos[i].channel, 0, pulse);
-                Serial.print("Channel ");
-                Serial.print(servos[i].channel);
-                Serial.print(" -> Angle: ");
-                Serial.println(angle);
-            }
-        }
-    } else if (platform == "platBbase") {
-        // 控制 channel 0
-        for (int i = 0; i < servoCount; i++) {
-            if (servos[i].channel == 0) {
-                int angle = up ? servos[i].endAngle : servos[i].startAngle;
-                int pulse = map(angle, 0, 180, SERVOMIN, SERVOMAX);
-                pwm.setPWM(0, 0, pulse);
-                Serial.print("Channel 0 -> Angle: ");
-                Serial.println(angle);
-            }
-        }
-    } else {
-        // Reset: 全部回原點
-        for (int i = 0; i < servoCount; i++) {
-            int pulse = map(servos[i].startAngle, 0, 180, SERVOMIN, SERVOMAX);
-            pwm.setPWM(servos[i].channel, 0, pulse);
-            Serial.print("Reset Channel ");
-            Serial.print(servos[i].channel);
-            Serial.print(" to Angle: ");
-            Serial.println(servos[i].startAngle);
-        }
     }
 }

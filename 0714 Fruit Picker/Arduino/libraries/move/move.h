@@ -2,33 +2,22 @@
 #define MOVE_H
 
 #include <Arduino.h>
-#include <Adafruit_PWMServoDriver.h>
 
-#define SERVOMIN 150
-#define SERVOMAX 600
-
-struct Motor {
-    int forwardPin;
-    int backwardPin;
-    int speedPin;
+// 結構：單顆直流馬達的腳位設定
+struct DcMotor {
+    int forwardPin;     // 前進方向腳位
+    int backwardPin;    // 後退方向腳位
+    int speedPin;       // 速度控制腳位（PWM）
 };
 
-struct ServoConfig {
-    int channel;
-    int startAngle; // 原點（起始角度）
-    int endAngle;   // 重點（終點角度）
-};
-
+// XboxDcMotorControl：專責控制四顆DC馬達的類別
 class XboxDcMotorControl {
     public:
-        XboxDcMotorControl();
-        void begin();
-        void setMotor(int index, int direction, int speed);
-        void servo(const String& platform, bool up);
-
+        XboxDcMotorControl();  // 建構子，初始化腳位參數
+        void begin();          // 初始化所有馬達腳位
+        void setMotor(int index, int direction, int speed); // 控制單一馬達（index:0~3）
     private:
-        Adafruit_PWMServoDriver pwm;
-        Motor motors[4];
+        DcMotor motors[4];     // 四顆馬達腳位配置
 };
 
 #endif
