@@ -1,10 +1,11 @@
 import pygame
 import serial
 import time
+import threading
 
 pygame.init()
 
-# 画文本到屏幕的类
+# 畫文本到屏幕的類
 class TextPrint:
     def __init__(self):
         self.reset()
@@ -26,128 +27,199 @@ class TextPrint:
     def unindent(self):
         self.x -= 10
 
+def monitor_limit_switch(arduinoA, arduinoB):
+    while True:
+        line = arduinoB.readline().decode(errors='ignore').strip()
+        if "PlatformA_Bottom" in line:
+            print("收到A底部，發送停止")
+            arduinoA.write(b'stopA,rebound=500\n')
+        if "PlatformB_Bottom" in line:
+            print("收到B底部，發送停止")
+            arduinoA.write(b'stopB,rebound=500\n')
+
+def init_climb(arduinoA, arduinoB):
+    # 初始步驟：重置平臺位置，平台皆上升、展開支撐架
+    arduinoA.write(b'platform_reset,speed=520,increase=0,force=1\n')
+    arduinoA.write(b'platA,height=120,increase=1,speed=520,force=1:\n')  # 前平台上升
+    arduinoA.write(b'platB,height=120,increase=1,speed=520,force=1:\n')  # 後平台上升
+    arduinoB.write(b'platA_base,channel=3,initial=10,end=20,increment=1,ini_to_end=True:\n')   # Servo 展開支撐架
+    arduinoB.write(b'platB_base,channel=14,initial=10,end=20,increment=1,ini_to_end=True:\n')
+    arduinoB.write(b'platB_base,channel=15,initial=10,end=20,increment=1,ini_to_end=True:\n')
+    time.sleep(1.0)
+
+def climb_step(arduinoA, arduinoB):
+    # 單階爬樓動作（Step 2~6）
+    # 2. 前後平台下降
+    arduinoA.write(b'platform_reset,speed=520,increase=0,force=1\n')
+    time.sleep(1.2)
+    # 3. 前後輪DC馬達同時前進
+    arduinoB.write(b'dc_front,dir=1,speed=70,on_off=1:\n')
+    arduinoB.write(b'dc_rear,dir=1,speed=70,on_off=1:\n')
+    time.sleep(1.2)
+    # 4. 前平台上升
+    arduinoA.write(b'platA,height=120,increase=1,speed=520,force=1:\n')
+    time.sleep(1.2)
+    # 5. 後輪DC馬達再次前進
+    arduinoB.write(b'dc_rear,dir=1,speed=70,on_off=1:\n')
+    time.sleep(1.2)
+    # 6. 後平台上升
+    arduinoA.write(b'platB,height=120,increase=1,speed=520,force=1:\n')
+    time.sleep(1.2)
+
+def end_climb(arduinoB):
+    # 收起支撐架或其他結束動作
+    arduinoB.write(b'platA_base,channel=3,initial=10,end=20,increment=1,ini_to_end=False:\n') # Servo 收起
+    arduinoB.write(b'platB_base,channel=14,initial=10,end=20,increment=1,ini_to_end=False:\n')
+    arduinoB.write(b'platB_base,channel=15,initial=10,end=20,increment=1,ini_to_end=False:\n')
+    time.sleep(0.8)
+
+
+
 def main():
     screen = pygame.display.set_mode((500, 700))
     pygame.display.set_caption("Joystick Axes Display")
 
     try:
-        # 这里连接两个Arduino串口。A负责底盘DC马达，B负责爬楼梯单元
+        # 連接兩個Arduino，A為底盤，B為上層/外設
         arduinoA = serial.Serial(port="COM3", baudrate=9600, timeout=1)
-        arduinoB = serial.Serial(port="COM4", baudrate=9600, timeout=1)
-        time.sleep(2)  # 等待串口初始化完成
+        arduinoB = serial.Serial(port="COM4", baudrate=9600, timeout=0.1)
+        threading.Thread(target=monitor_limit_switch, args=(arduinoA, arduinoB), daemon=True).start()
+        time.sleep(2)  # 等待串口初始化
     except Exception as e:
-        print(f"串口連接失敗: {e}")  # 如果串口无法打开，直接报错并退出
+        print(f"串口連接失敗: {e}")
         return
 
+    arduinoA.write(b'platform_reset,speed=520,increase=0,force=1\n')
     clock = pygame.time.Clock()
     text_print = TextPrint()
-    joysticks = {}  # 保存已连接的手柄
+    joysticks = {}
 
     done = False
     hat = (0, 0)
-    fruit_force_on = False      # 初始沒激磁
-    bucket_grabbed = False      # False=放開, True=抓住
-    coffee_arm_open = False     # 咖啡手臂展開/收回狀態
-    coffee_clamp_on = False     # 咖啡杯夾夾/放
-    coffee_suction_on = False   # 咖啡盤吸附/放開
+    ori_speed = 70
+    climb_level = 0
+    fruit_force_on = False      # 控制步進馬達激磁狀態
+    orange_clamp_on = False     # 夾柳丁狀態
+    bucket_grabbed = False      # 夾桶子狀態
+    coffee_arm_open = False     # 咖啡手臂展開
+    coffee_clamp_on = False     # 咖啡杯夾合
+    coffee_suction_on = False   # 咖啡盤吸附
     coffee_table_low = False    # 咖啡桌高度低/高
 
-    # 主循环
+    # 主循環
     while not done:
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 done = True
 
-            # 手柄插入时，注册并加入joysticks字典
+            # 手柄插入，動態註冊
             elif event.type == pygame.JOYDEVICEADDED:
                 joy = pygame.joystick.Joystick(event.device_index)
                 joysticks[joy.get_instance_id()] = joy
                 print(f"Joystick {joy.get_instance_id()} connected")
 
-            # 手柄拔出时，从joysticks字典移除
+            # 手柄拔出，動態移除
             elif event.type == pygame.JOYDEVICEREMOVED:
                 del joysticks[event.instance_id]
                 print(f"Joystick {event.instance_id} disconnected")
 
-            # 帽子开关事件（通常是方向盘）
+            # 處理帽子（方向鍵/十字鍵）事件
             elif event.type == pygame.JOYHATMOTION:
-                hat = event.value  # hat的值是个tuple，比如(0,1)
+                hat = event.value  # hat值是元組 (x, y)
 
-            # 按钮按下事件（用于平台升降）
+            # 處理按鍵事件（主體功能）
             elif event.type == pygame.JOYBUTTONDOWN:
-                if event.button == 0:  # A键，平台B上升
+                # 平台升降，對應底盤動作
+                if event.button == 0:  # A鍵
                     text_print.tprint(screen, "Platform B ↑")
-                    arduinoA.write(b'platB:height,50:lifting,1:speed,520:force,1:\n')
-                elif event.button == 1:  # B键，平台B下降
+                    arduinoA.write(b'platB,height=50,increase=1,speed=520,force=1:\n')
+                elif event.button == 1:  # B鍵
                     text_print.tprint(screen, "Platform B ↓")
-                    arduinoA.write(b'platB:height,50:lifting,0:speed,520:force,1:\n')
-                elif event.button == 2:  # X键，平台A上升
+                    arduinoA.write(b'platB,height=50,increase=0,speed=520,force=1:\n')
+                elif event.button == 2:  # X鍵
                     text_print.tprint(screen, "Platform A ↑")
-                    arduinoA.write(b'platA:height,50:lifting,1:speed,520:force,1:\n')
-                elif event.button == 3:  # Y键，平台A下降
+                    arduinoA.write(b'platA,height=50,increase=1,speed=520,force=1:\n')
+                elif event.button == 3:  # Y鍵
                     text_print.tprint(screen, "Platform A ↓")
-                    arduinoA.write(b'platA:height,50:lifting,0:speed,520:force,1:\n')
-                elif event.button == 4:  # LB (Left Bumper) 減速
-                    arduinoB.write(b'accelerate:speed,\n')
-                elif event.button == 5:  # RB (Right Bumper) 加速
-                    arduinoB.write(b'decelerate:speed,\n')
+                    arduinoA.write(b'platA,height=50,increase=0,speed=520,force=1:\n')
+                elif event.button == 4:  # LB 減速
+                    ori_speed -= 10
+                elif event.button == 5:  # RB 加速
+                    ori_speed += 10
 
-                # 根據帽子 + 按鍵組合判斷
-                if hat == (0, 1):   # ↑ doll mode
-                    if event.button == 0:   # A键，夾取
-                        arduinoB.write(b'doll:Clamp\n')
-                    elif event.button == 1: # A键，釋放
-                        arduinoB.write(b'doll:Release\n')
-                    elif event.button == 2: # X键，機械臂：展開
-                        arduinoB.write(b'doll:Expand\n')
-                    elif event.button == 3: # Y键，機械臂：收回
-                        arduinoB.write(b'doll:Retracts\n')
-                elif hat == (0, -1):    # ↓ fruit mode 平台上升=>馬達正轉=>馬達反轉=>平台下降
-                    if event.button == 2:   # X键，高度"低"模式 "60cm"
-                        fruit_force_on = not fruit_force_on  # 切換狀態
+                # 模式判斷：帽子方向 + 按鍵組合
+                if hat == (0, 1):   # ↑ 娃娃機模式
+                    if event.button == 0:   # A鍵，夾取
+                        arduinoB.write(b'doll,Clamp:\n')
+                    elif event.button == 1: # B鍵，釋放
+                        arduinoB.write(b'doll,Release:\n')
+                    elif event.button == 2: # X鍵，機械臂展開
+                        arduinoB.write(b'doll,Expand:\n')
+                    elif event.button == 3: # Y鍵，機械臂收回
+                        arduinoB.write(b'doll,Retracts:\n')
+
+                elif hat == (0, -1):    # ↓ 果樹採摘/平台升降模式
+                    if event.button == 2:   # X鍵，低高度模式
+                        fruit_force_on = not fruit_force_on
                         force_value = 1 if fruit_force_on else 0
-                        arduinoB.write(f'fruit,height=50,increase={force_value},speed=520,force={force_value}:\n'.encode())   # 步進馬達 stepper motor
-                    elif event.button == 3: # Y键，高度"中"模式 "100cm"
-                        fruit_force_on = not fruit_force_on  # 切換狀態
+                        arduinoB.write(f'fruit,height=50,increase={force_value},speed=520,force={force_value}:\n'.encode())
+                    elif event.button == 3: # Y鍵，中高度模式
+                        fruit_force_on = not fruit_force_on
                         force_value = 1 if fruit_force_on else 0
-                        arduinoB.write(f'fruit,height=90,increase={force_value},speed=520,force={force_value}:\n'.encode())   # 步進馬達 stepper motor
-                    elif event.button == 1: # B键，高度"高"模式 "130cm"
-                        fruit_force_on = not fruit_force_on  # 切換狀態
+                        arduinoB.write(f'fruit,height=90,increase={force_value},speed=520,force={force_value}:\n'.encode())
+                    elif event.button == 1: # B鍵，高高度模式
+                        fruit_force_on = not fruit_force_on
                         force_value = 1 if fruit_force_on else 0
-                        arduinoB.write(f'fruit,height=120,increase={force_value},speed=520,force={force_value}:\n'.encode())  # 步進馬達 stepper motor
-                    elif event.button == 0: # A键，夾取柳丁
-                        arduinoB.write(b'fruit:dir,1:speed,100:on_off,True:\n')  # 直流馬達 DC motor
-                elif hat == (-1, 0):    # ← bucket & climb mode
-                    if event.button == 0:   # A键，夾取桶子抓/放
-                        bucket_grabbed = not bucket_grabbed  # 切換狀態
-                        data = f"bucket:{bucket_grabbed}\n"
+                        arduinoB.write(f'fruit,height=120,increase={force_value},speed=520,force={force_value}:\n'.encode())
+                    elif event.button == 0:  # A鍵，柳丁夾取/釋放狀態切換
+                        orange_clamp_on = not orange_clamp_on
+                        if orange_clamp_on:
+                            arduinoB.write(b'fruit,dir=1,speed=100,on_off=True:\n')    # 執行夾取
+                        else:
+                            arduinoB.write(b'fruit,dir=-1,speed=100,on_off=True:\n')   # 執行釋放
+
+                elif hat == (-1, 0):    # ← 桶子/攀爬模式
+                    if event.button == 0:   # A鍵，桶子夾取/放下
+                        bucket_grabbed = not bucket_grabbed
+                        data = f"bucket,{bucket_grabbed}:\n"
                         arduinoB.write(data.encode())
-                    elif event.button == 1: # B键，高台娃娃放置
-                        arduinoB.write(b'ladder:place\n')
-                    elif event.button == 2: # X键，桶子夾夾倒/豎
-                        arduinoB.write(b'bucket:titl\n')
-                    elif event.button == 3: # Y键，爬高台樓梯一鍵爬完
-                        arduinoB.write(b'ladder:climb:\n')
-                elif hat == (1, 0):     # → Coffee mode
-                    if event.button == 0:  # A键，咖啡手臂展開/收回
-                        coffee_arm_open = not coffee_arm_open       # 切換 True/False
-                        data = f"coffee_arm:{coffee_arm_open}\n"
+                    elif event.button == 1: # B鍵，高台娃娃放置
+                        arduinoB.write(b'ladder,place:\n')
+                    elif event.button == 2: # X鍵，桶子傾倒
+                        arduinoB.write(b'bucket,titl:\n')
+                    elif event.button == 3: # Y鍵，爬高台樓梯 Servo, Stepper, DC
+                        # 展開->平臺下降->DC(前後)往前推->前面平臺上升->DC(后面)往前推->後面平臺上升->收起來
+                        if climb_level == 0:
+                            # 第一次按下，初始化＋爬一階
+                            init_climb(arduinoA, arduinoB)
+                            climb_step(arduinoA, arduinoB)
+                            climb_level += 1
+                        elif climb_level == 1:
+                            # 第二次按下，只爬一階＋結束
+                            climb_step(arduinoA, arduinoB)
+                            end_climb(arduinoB)
+                            climb_level = 0  # 完成兩階爬樓梯，重設
+
+                elif hat == (1, 0):     # → 咖啡模式
+                    if event.button == 0:  # A鍵，咖啡手臂展開/收回
+                        coffee_arm_open = not coffee_arm_open
+                        data = f"coffee_arm,{coffee_arm_open}:\n"
                         arduinoB.write(data.encode())
-                    elif event.button == 1:  # B键，咖啡杯夾夾/放
-                        coffee_clamp_on = not coffee_clamp_on       # 切換 True/False
-                        data = f"coffee_clamp:{coffee_clamp_on}\n"
+                    elif event.button == 1:  # B鍵，咖啡杯夾合/放
+                        coffee_clamp_on = not coffee_clamp_on
+                        data = f"coffee_clamp,{coffee_clamp_on}:\n"
                         arduinoB.write(data.encode())
-                    elif event.button == 2:  # X键，咖啡盤吸附/放開
-                        coffee_suction_on = not coffee_suction_on   # 切換 True/False
-                        data = f"coffee_suction:{coffee_suction_on}\n"
+                    elif event.button == 2:  # X鍵，咖啡盤吸附/放開
+                        coffee_suction_on = not coffee_suction_on
+                        data = f"coffee_suction,{coffee_suction_on}:\n"
                         arduinoB.write(data.encode())
-                    elif event.button == 3:  # Y键，咖啡桌高度低/高
-                        coffee_table_low = not coffee_table_low     # 切換 True/False
-                        data = f"coffee_table_height:{coffee_table_low}\n"
+                    elif event.button == 3:  # Y鍵，咖啡桌高度低/高
+                        coffee_table_low = not coffee_table_low
+                        data = f"coffee_table_height,{coffee_table_low}:\n"
                         arduinoB.write(data.encode())
 
-        # 屏幕绘制部分，每次都清空重画
+        # 畫面每次都清空重畫，顯示當前搖桿資訊與發送封包
         screen.fill((255, 255, 255))
         text_print.reset()
 
@@ -155,7 +227,7 @@ def main():
         text_print.tprint(screen, f"Number of joysticks: {joystick_count}")
         text_print.indent()
 
-        # 遍历所有手柄，获取轴数据
+        # 依次處理所有已連接搖桿
         for joystick in joysticks.values():
             jid = joystick.get_instance_id()
             text_print.tprint(screen, f"Joystick {jid}")
@@ -174,75 +246,62 @@ def main():
             text_print.tprint(screen, f"Number of axes: {axes}")
             text_print.indent()
 
-            # 取得左搖桿X、Y轴数据
             try:
-                # 死區設定，防止微小搖動產生誤動作
+                # 設定死區，防止誤動作
                 deadzone = 0.1
-                # 左搖桿
-                x_axis = joystick.get_axis(0)  # 左搖桿 X（平移）
-                y_axis = -joystick.get_axis(1)  # 左搖桿 Y（前後）
+                # 左搖桿 X、Y
+                x_axis = joystick.get_axis(0)
+                y_axis = -joystick.get_axis(1)
+                # 右搖桿 X
+                right_x = joystick.get_axis(2)
 
-                # 右搖桿
-                right_x = joystick.get_axis(2)  # 右搖桿 X（旋轉）
-
-                # 機器人四輪計算 (Mecanum公式：直線＋旋轉)
+                # 四輪輪速計算
                 wheel_speeds = [
-                    y_axis + x_axis + right_x,  # 左前輪
-                    y_axis - x_axis - right_x,  # 右前輪
-                    y_axis - x_axis + right_x,  # 左後輪
-                    y_axis + x_axis - right_x  # 右後輪
+                    y_axis + x_axis + right_x,  # 左前
+                    y_axis - x_axis - right_x,  # 右前
+                    y_axis - x_axis + right_x,  # 左後
+                    y_axis + x_axis - right_x   # 右後
                 ]
 
-                # 將各輪速度組成傳送資料（包含方向與速度）
                 data_packet = ""
                 for speed in wheel_speeds:
                     if abs(speed) < deadzone:
-                        direction = 0  # 死區內，馬達停止
+                        direction = 0
                     elif speed > 0:
-                        direction = 1  # 正轉（前進/右移/順時針）
+                        direction = 1
                     else:
-                        direction = -1  # 反轉（後退/左移/逆時針）
+                        direction = -1
+                    data_packet += f"move,dir={direction},speed={int(abs(speed) * ori_speed)},on_off=1:"
 
-                    # 組合傳送字串，每個輪子一組指令（速度可依實際需求調整）
-                    data_packet += f"move,dir={direction},speed={int(abs(speed) * 70)},on_off=1:"
-
-                Send_str = f"{data_packet}\n"  # 加上換行符號，表示一個封包結束
-
-                # 畫面上顯示傳送封包內容，方便除錯
+                Send_str = f"{data_packet}\n"
                 text_print.tprint(screen, Send_str)
 
-                # 實際傳送資料到 ArduinoB
+                # 傳送封包到 ArduinoB
                 if arduinoB and arduinoB.is_open:
                     arduinoB.write(Send_str.encode())
 
-                # 取得 LT（左下板機），RT（右下板機）數值
-                lt_value = joystick.get_axis(4)  # LT，代表「左擺動」
-                rt_value = joystick.get_axis(5)  # RT，代表「右擺動」
-
-                # 設定死區與最大轉速（將類比值轉成 0~255 的PWM轉速）
+                # LT/RT 觸發器模擬單輪旋轉
+                lt_value = joystick.get_axis(4)
+                rt_value = joystick.get_axis(5)
                 lt_speed = int(max(0, lt_value) * 255)
                 rt_speed = int(max(0, rt_value) * 255)
 
-                # 組合turn的封包（以四輪輪流檢查，目前只用第一輪有效，其餘作佯裝資料）
                 turn_packet = ""
                 if lt_speed > 0:
-                    # 只對第一顆輪子做左轉
                     turn_packet = (
-                        f"turn,dir=1,speed={lt_speed},on_off=True:"  # 1=左轉
+                        f"turn,dir=1,speed={lt_speed},on_off=True:"
                         f"turn,dir=0,speed=0,on_off=True:"
                         f"turn,dir=0,speed=0,on_off=True:"
                         f"turn,dir=0,speed=0,on_off=True:"
                     )
                 elif rt_speed > 0:
-                    # 只對第二顆輪子做右轉
                     turn_packet = (
                         f"turn,dir=0,speed=0,on_off=True:"
-                        f"turn,dir=1,speed={lt_speed},on_off=True:"   # 1=右轉
+                        f"turn,dir=1,speed={lt_speed},on_off=True:"
                         f"turn,dir=0,speed=0,on_off=True:"
                         f"turn,dir=0,speed=0,on_off=True:"
                     )
 
-                # 只要有 turn_packet 就傳送（代表有按下LT或RT）
                 if turn_packet:
                     if arduinoB and arduinoB.is_open:
                         arduinoB.write((turn_packet + "\n").encode())
@@ -251,10 +310,10 @@ def main():
                 text_print.tprint(screen, "錯誤: 無法讀取搖桿軸值")
 
         pygame.display.flip()
-        clock.tick(30)  # 刷新率限制
+        clock.tick(30)
 
-    # 程序退出前关闭串口
-    if arduinoA and arduinoA.is_open or arduinoB and arduinoB.is_open:
+    # 程式結束時關閉串口
+    if (arduinoA and arduinoA.is_open) or (arduinoB and arduinoB.is_open):
         arduinoA.close()
         arduinoB.close()
     pygame.quit()

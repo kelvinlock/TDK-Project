@@ -1,3 +1,9 @@
+/*
+    平台控制 Arduino Board C
+    連接方式：透過 TX/RX 連接（第二塊 Arduino 板子）
+    主要負責：叉杆結構的升降
+    位置：位於平臺A上方
+*/
 #include <FruitPicker.h>
 FruitPicker controller;
 
@@ -28,6 +34,13 @@ void loop() {
             bool force = (forceStr == "1");
 
             controller.setStepper(height, increase, speed, force);
+        }
+    }
+    if (holding) {
+        // 如果已經激磁一段時間（如2秒）
+        if (millis() - magnetOnTime >= 2000) {
+            digitalWrite(EN_PIN, HIGH); // 釋放激磁（解鎖）
+            holding = false;            // 結束等待，下次動作前才會再激磁
         }
     }
 }

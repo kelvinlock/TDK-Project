@@ -1,19 +1,48 @@
+/*
+    平台控制 Arduino Board B
+    連接方式：直接從 UP7000 連接出來
+    主要負責：控制各種動作
+    位置：整個機器
+*/
 #include <move.h>
+#include <Climb.h>
 
 XboxDcMotorControl controller;
+ServoManager Servo;
+const int limitSwitchA = 42;  // 平台A 極限開關腳位
+const int limitSwitchB = 43;  // 平台B 極限開關腳位
+
+bool lastLimitA = HIGH; // 記錄上一次平台A極限開關狀態
+bool lastLimitB = HIGH; // 記錄上一次平台B極限開關狀態
 
 void setup() {
     Serial.begin(9600);
     Serial1.begin(9600);
+    pinMode(limitSwitchA, INPUT_PULLUP); // 設定極限開關腳位為上拉輸入
+    pinMode(limitSwitchB, INPUT_PULLUP);
     controller.begin(); // 初始化馬達控制器
 }
 
 void loop() {
+    // ========= 極限開關偵測與回報（僅變化時回傳）=========
+    bool nowLimitA = digitalRead(limitSwitchA);
+    bool nowLimitB = digitalRead(limitSwitchB);
+    // 若檢測到 HIGH 轉 LOW（下降沿），代表到達頂部，只回報一次
+    if (lastLimitA == HIGH && nowLimitA == LOW) {
+        Serial.println("PlatformA_Bottom");  // 通知上位機，平台A到頂
+    }
+    if (lastLimitB == HIGH && nowLimitB == LOW) {
+        Serial.println("PlatformB_Bottom");  // 通知上位機，平台B到頂
+    }
+    lastLimitA = nowLimitA; // 更新狀態
+    lastLimitB = nowLimitB;
+
+    // ========= 指令接收與分割處理 =========
     if (Serial.available() > 0) {
         String data = Serial.readStringUntil('\n'); // 讀取一行串口數據
-        data.trim();
+        data.trim(); // 去除字串首尾空白
 
-        // 先將資料用 ':' 拆分成 segments
+        // 使用 ':' 拆分成多個指令段（例如一次控制多顆馬達）
         int last = 0;
         int idx = 0;
         String segments[10]; // 最多10個指令段
@@ -28,45 +57,46 @@ void loop() {
             }
         }
 
-        int motorIndex = 0; // 用來對應第幾顆馬達（左前、右前、左後、右後）
+        int motorIndex = 0; // 馬達索引（左前、右前、左後、右後）
 
-        // 逐一解析每個指令段(segment)
+        // 依序解析每個指令段(segment)
         for (int i = 0; i < idx; i++) {
             String segment = segments[i];
             segment.trim();
 
-            // 僅支援處理移動"move"或"turn"開頭的指令
+            // 支援 "move" 或 "turn" 開頭的直流馬達控制指令
             if (segment.startsWith("move") || segment.startsWith("turn")) {
                 int dir = 0, speed = 0;
                 bool on_off = false;
 
-                // 解析dir、speed、on_off的數值
+                // 解析 dir、speed、on_off 參數
                 int dirIdx = segment.indexOf("dir=") + 4;
                 int speedIdx = segment.indexOf("speed=") + 6;
                 int onOffIdx = segment.indexOf("on_off=") + 7;
 
-                // 馬達方向（1前進、-1後退、0停止
+                // 取得馬達方向（1前進、-1後退、0停止）
                 dir = segment.substring(dirIdx, segment.indexOf(',', dirIdx)).toInt();
-                speed = segment.substring(speedIdx, segment.indexOf(',', speedIdx)).toInt(); // 馬達速度（0~255）
-
-                // on_off 取到字串尾（是否啟動馬達）
+                // 取得馬達速度（0~255）
+                speed = segment.substring(speedIdx, segment.indexOf(',', speedIdx)).toInt();
+                // on_off 取到字串結尾（判斷是否要啟動馬達）
                 String onOffStr = segment.substring(onOffIdx);
                 if (onOffStr.indexOf(',') != -1)
                     onOffStr = onOffStr.substring(0, onOffStr.indexOf(','));
-                on_off = (onOffStr == "1"); // 是否執行（True=1, False=0）
+                on_off = (onOffStr == "1"); // 是否啟動（1為啟動）
 
                 // 執行馬達控制
                 if (on_off) {
-                    controller.setMotor(motorIndex, dir, speed); // 控制指定馬達（motorIndex）方向與速度
+                    controller.setMotor(motorIndex, dir, speed); // 控制第 motorIndex 顆馬達
                 } else {
-                    controller.setMotor(motorIndex, 0, 0);       // 若 off 則該馬達停止
+                    controller.setMotor(motorIndex, 0, 0);      // 停止該馬達
                 }
                 motorIndex++; // 處理下一顆馬達
             }
-            // "fruit" 模式，格式："fruit,height=50,increase=1,speed=520,force=1:\n"
+            // "fruit" 模式：用於水果夾持的馬達指令
+            // Format: fruit,dir=-1,speed=100,on_off=True:
             else if (segment.startsWith("fruit")) {
                 if (segment.indexOf("dir=") != -1) {
-                    // DC motor 指令處理
+                    // 解析 DC 馬達指令
                     int dirIdx = segment.indexOf("dir=") + 4;
                     int speedIdx = segment.indexOf("speed=") + 6;
                     int onOffIdx = segment.indexOf("on_off=") + 7;
@@ -79,18 +109,43 @@ void loop() {
                         onOffStr = onOffStr.substring(0, onOffStr.indexOf(','));
                     bool on_off = (onOffStr == "True" || onOffStr == "1");
 
-                    controller.setMotor(dir, speed, on_off);  // 你需要在 library 實作這個
+                    controller.setMotor(dir, speed, on_off);  // 需於library中自訂
                 } else {
-                    // 轉發給 Board B
-                    Serial1.println(segment); // 請確認 B 端是 Serial.begin(9600)
+                    // 指令直接轉發給另一塊板子（例如下層執行特殊動作）
+                    Serial1.println(segment); // 注意下層端 Serial.begin(9600) 是否有打開
                 }
             }
             // 處理平台伺服馬達指令
-            else if (segment.startsWith("platAbase") || segment.startsWith("platBbase") || segment.startsWith("reset")) {
-                int commaPos = segment.indexOf(',');
-                String valStr = segment.substring(commaPos + 1);
-                bool up = (valStr == "1");
-                controller.servo(segment.substring(0, commaPos), up);
+            // Format: platA_base,channel=3,initial=10,end=20,increment=1,ini_to_end=True:
+            else if (segment.startsWith("platA_base") || segment.startsWith("platB_base")) {
+
+                // 解析 channel
+                int channelIdx = segment.indexOf("channel=") + 8;
+                int channelCommaIdx = segment.indexOf(',', channelIdx);
+                int channel = segment.substring(channelIdx, channelCommaIdx).toInt();
+
+                // 解析 initial
+                int initialIdx = segment.indexOf("initial=") + 8;
+                int initialCommaIdx = segment.indexOf(',', initialIdx);
+                int initial = segment.substring(initialIdx, initialCommaIdx).toInt();
+
+                // 解析 end
+                int endIdx = segment.indexOf("end=") + 4;
+                int endCommaIdx = segment.indexOf(',', endIdx);
+                int end = segment.substring(endIdx, endCommaIdx).toInt();
+
+                // 解析 increment
+                int incrementIdx = segment.indexOf("increment=") + 10;
+                int incrementCommaIdx = segment.indexOf(',', incrementIdx);
+                int increment = segment.substring(incrementIdx, incrementCommaIdx).toInt();
+
+                // 解析 ini_to_end
+                int ini_to_endIdx = segment.indexOf("ini_to_end=") + 11;
+                int ini_to_endColonIdx = segment.indexOf(':', ini_to_endIdx);
+                String iniToEndStr = segment.substring(ini_to_endIdx, ini_to_endColonIdx);
+                bool ini_to_end = (iniToEndStr == "True" || iniToEndStr == "1");
+
+                Servo.moveServo(channel, initial, end, increment, ini_to_end);
             }
         }
     }
