@@ -118,7 +118,7 @@ void loop() {
             // 處理平台伺服馬達指令
             // Format: platA_base,channel=3,initial=10,end=20,increment=1,ini_to_end=True:
             else if (segment.startsWith("platA_base") || segment.startsWith("platB_base")) {
-
+                if (segment.indexOf("channel=") != -1) {
                 // 解析 channel
                 int channelIdx = segment.indexOf("channel=") + 8;
                 int channelCommaIdx = segment.indexOf(',', channelIdx);
@@ -146,7 +146,29 @@ void loop() {
                 bool ini_to_end = (iniToEndStr == "True" || iniToEndStr == "1");
 
                 Servo.moveServo(channel, initial, end, increment, ini_to_end);
-            }
+                }
+                // Format: platB_base,dir=1,speed=70,on_off=1:
+                else if (segment.indexOf("dir=") != -1) {
+                    // 取得 dir 參數的位置，dir= 後面為數值
+                    int dirIdx = segment.indexOf("dir=") + 4;  // 找到 dir= 字串後，定位到數值起始處
+                    int dirCommaIdx = segment.indexOf(',', dirIdx); // 找下一個逗號（,）的位置，表示 dir 結束的位置
+                    int dir = segment.substring(dirIdx, dirCommaIdx).toInt(); // 取出 dir 的數值，轉換為整數（1=正轉, -1=反轉, 0=停止）
+
+                    // 取得 speed 參數的位置，speed= 後面為數值
+                    int speedIdx = segment.indexOf("speed=") + 6;   // 找到 speed= 字串後，定位到數值起始處
+                    int speedCommaIdx = segment.indexOf(',', speedIdx); // 找 speed= 之後第一個逗號（,）的位置
+                    int speed = segment.substring(speedIdx, speedCommaIdx).toInt(); // 取出 speed 數值（0~255），轉換為整數
+
+                    // 取得 on_off 參數的位置，on_off= 後面為數值
+                    int onOffIdx = segment.indexOf("on_off=") + 7;  // 找到 on_off= 字串後，定位到數值起始處
+                    int onOffColonIdx = segment.indexOf(':', onOffIdx); // 找到指令結尾的冒號（:）
+                    String onOffStr = segment.substring(onOffIdx, onOffColonIdx); // 取出 on_off 的字串內容（"1"、"0"、"True"、"False"）
+
+                    // 判斷是否啟動馬達（1 或 True 為啟動，0 或 False 為關閉）
+                    bool on_off = (onOffStr == "1" || onOffStr == "True");
+
+                    Servo.setClimbMotor(dir, speed, on_off);
+                }
         }
     }
 }

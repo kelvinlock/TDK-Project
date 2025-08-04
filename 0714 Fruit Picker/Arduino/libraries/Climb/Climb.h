@@ -27,6 +27,7 @@ class ServoManager {
         ServoManager();                          // 建構子，初始化伺服與馬達腳位
         void begin();                            // 初始化所有硬體腳位
         void moveServo(int channel, int initial, int end, int increment, bool ini_to_end); // 控制指定平台的伺服馬達動作
+        void setClimbMotor(int dir, int speed, bool on_off);
         void resetAll();                         // 將所有伺服馬達歸零（回到原點）
     private:
         Adafruit_PWMServoDriver pwm;             // 控制多路伺服馬達的驅動器

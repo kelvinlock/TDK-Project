@@ -47,6 +47,29 @@ void ServoManager::moveServo(int channel, int initial, int end, int increment, b
     }
 }
 
+void ServoManager::setClimbMotor(int dir, int speed, bool on_off) {
+    for (int i = 0; i < 2; i++) {
+        if (!on_off) {
+            // 若 on_off 為 false，直接關閉馬達
+            digitalWrite(DcMotor[i].forwardPin, LOW);
+            digitalWrite(DcMotor[i].backwardPin, LOW);
+            analogWrite(DcMotor[i].speedPin, 0);
+        } else if (dir == 1) {
+            digitalWrite(DcMotor[i].forwardPin, HIGH);
+            digitalWrite(DcMotor[i].backwardPin, LOW);
+            analogWrite(DcMotor[i].speedPin, speed);
+        } else if (dir == -1) {
+            digitalWrite(DcMotor[i].forwardPin, LOW);
+            digitalWrite(DcMotor[i].backwardPin, HIGH);
+            analogWrite(DcMotor[i].speedPin, speed);
+        } else { // 停止
+            digitalWrite(DcMotor[i].forwardPin, LOW);
+            digitalWrite(DcMotor[i].backwardPin, LOW);
+            analogWrite(DcMotor[i].speedPin, 0);
+        }
+    }
+}
+
 // 將所有伺服馬達「平滑歸零」——每個馬達從終點endAngle慢慢走回原點startAngle，步進大小由increment決定
 void ServoManager::resetAll(int increment) {
     for (int i = 0; i < servoCount; i++) {

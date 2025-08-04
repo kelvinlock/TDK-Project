@@ -37,6 +37,24 @@ def monitor_limit_switch(arduinoA, arduinoB):
             print("收到B底部，發送停止")
             arduinoA.write(b'stopB,rebound=500\n')
 
+def run_dc_motor(arduinoB, distance_cm, speed=70, motor_name="platB_base"):
+    """
+    控制定時驅動 DC 馬達跑指定距離（單位：公分）
+    arduinoB   ：目標 Arduino（負責控制 DC 馬達）
+    distance_cm：希望移動的距離（公分），可由隊友任意更改
+    speed      ：馬達轉速（0~255），預設為70，可自行調整
+    motor_name ：目標馬達的名稱（指令字串），預設為 platB_base
+    """
+    # ★根據實際實驗結果：speed=70 時，每 1 公分約需 0.05 秒（請依你們測量的數值調整）
+    seconds_per_cm = 0.05
+    duration = distance_cm * seconds_per_cm
+
+    # 發送啟動指令，讓 DC 馬達往前
+    arduinoB.write(f'{motor_name},dir=1,speed={speed},on_off=1:\n'.encode())
+    time.sleep(duration)  # 馬達運行指定時間
+    # 發送停止指令
+    arduinoB.write(f'{motor_name},dir=0,speed=0,on_off=0:\n'.encode())
+
 def init_climb(arduinoA, arduinoB):
     # 初始步驟：重置平臺位置，平台皆上升、展開支撐架
     arduinoA.write(b'platform_reset,speed=520,increase=0,force=1\n')
@@ -48,20 +66,20 @@ def init_climb(arduinoA, arduinoB):
     time.sleep(1.0)
 
 def climb_step(arduinoA, arduinoB):
-    # 單階爬樓動作（Step 2~6）
+    """
+    機器人單階爬樓梯動作
+    arduinoA        ：主控板A，負責平臺升降
+    arduinoB        ：主控板B，負責驅動DC輪馬達
+    dc_distance_cm  ：DC馬達推進距離（公分），可讓隊友隨時調整
+    """
     # 2. 前後平台下降
     arduinoA.write(b'platform_reset,speed=520,increase=0,force=1\n')
-    time.sleep(1.2)
-    # 3. 前後輪DC馬達同時前進
-    arduinoB.write(b'dc_front,dir=1,speed=70,on_off=1:\n')
-    arduinoB.write(b'dc_rear,dir=1,speed=70,on_off=1:\n')
     time.sleep(1.2)
     # 4. 前平台上升
     arduinoA.write(b'platA,height=120,increase=1,speed=520,force=1:\n')
     time.sleep(1.2)
-    # 5. 後輪DC馬達再次前進
-    arduinoB.write(b'dc_rear,dir=1,speed=70,on_off=1:\n')
-    time.sleep(1.2)
+    # 5. DC馬達再次前進
+    run_dc_motor(arduinoB, distance_cm=30, speed=70, motor_name="platB_base")
     # 6. 後平台上升
     arduinoA.write(b'platB,height=120,increase=1,speed=520,force=1:\n')
     time.sleep(1.2)
