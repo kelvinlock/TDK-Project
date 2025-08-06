@@ -58,8 +58,10 @@ def run_dc_motor(arduinoB, distance_cm, speed=70, motor_name="platB_base"):
 def init_climb(arduinoA, arduinoB):
     # 初始步驟：重置平臺位置，平台皆上升、展開支撐架
     arduinoA.write(b'platform_reset,speed=520,increase=0,force=1\n')
+    time.sleep(1.0)
     arduinoA.write(b'platA,height=120,increase=1,speed=520,force=1:\n')  # 前平台上升
     arduinoA.write(b'platB,height=120,increase=1,speed=520,force=1:\n')  # 後平台上升
+    time.sleep(1.0)
     arduinoB.write(b'platA_base,channel=3,initial=10,end=20,increment=1,ini_to_end=True:\n')   # Servo 展開支撐架
     arduinoB.write(b'platB_base,channel=14,initial=10,end=20,increment=1,ini_to_end=True:\n')
     arduinoB.write(b'platB_base,channel=15,initial=10,end=20,increment=1,ini_to_end=True:\n')
@@ -72,15 +74,18 @@ def climb_step(arduinoA, arduinoB):
     arduinoB        ：主控板B，負責驅動DC輪馬達
     dc_distance_cm  ：DC馬達推進距離（公分），可讓隊友隨時調整
     """
-    # 2. 前後平台下降
+    # 同時讓前後兩個平台下降到底部（方便底盤準備推進）
     arduinoA.write(b'platform_reset,speed=520,increase=0,force=1\n')
     time.sleep(1.2)
-    # 4. 前平台上升
+
+    # 前平台先上升（避免前平台卡在階梯邊緣）
     arduinoA.write(b'platA,height=120,increase=1,speed=520,force=1:\n')
     time.sleep(1.2)
-    # 5. DC馬達再次前進
+
+    # DC馬達推動底盤前進（依設定距離前進，例如30公分）
     run_dc_motor(arduinoB, distance_cm=30, speed=70, motor_name="platB_base")
-    # 6. 後平台上升
+
+    # 後平台上升（完成這一階的爬升後，恢復後平台高度）
     arduinoA.write(b'platB,height=120,increase=1,speed=520,force=1:\n')
     time.sleep(1.2)
 
@@ -90,8 +95,6 @@ def end_climb(arduinoB):
     arduinoB.write(b'platB_base,channel=14,initial=10,end=20,increment=1,ini_to_end=False:\n')
     arduinoB.write(b'platB_base,channel=15,initial=10,end=20,increment=1,ini_to_end=False:\n')
     time.sleep(0.8)
-
-
 
 def main():
     screen = pygame.display.set_mode((500, 700))
