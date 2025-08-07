@@ -22,9 +22,9 @@ struct DcConfig {
     int speedPin;        // 速度控制腳位（PWM）
 };
 
-class ServoManager {
+class climbServoManager {
     public:
-        ServoManager();                          // 建構子，初始化伺服與馬達腳位
+        climbServoManager();                          // 建構子，初始化伺服與馬達腳位
         void begin();                            // 初始化所有硬體腳位
         void moveServo(int channel, int initial, int end, int increment, bool ini_to_end); // 控制指定平台的伺服馬達動作
         void setClimbMotor(int dir, int speed, bool on_off);

@@ -8,7 +8,8 @@
 #include <Climb.h>
 
 XboxDcMotorControl controller;
-ServoManager Servo;
+climbServoManager ClimbServo;
+coffeeServoManager CoffeeServo;
 const int limitSwitchA = 42;  // 平台A 極限開關腳位
 const int limitSwitchB = 43;  // 平台B 極限開關腳位
 
@@ -21,6 +22,7 @@ void setup() {
     pinMode(limitSwitchA, INPUT_PULLUP); // 設定極限開關腳位為上拉輸入
     pinMode(limitSwitchB, INPUT_PULLUP);
     controller.begin(); // 初始化馬達控制器
+    ClimbServo.begin();
 }
 
 void loop() {
@@ -119,33 +121,33 @@ void loop() {
             // Format: platA_base,channel=3,initial=10,end=20,increment=1,ini_to_end=True:
             else if (segment.startsWith("platA_base") || segment.startsWith("platB_base")) {
                 if (segment.indexOf("channel=") != -1) {
-                // 解析 channel
-                int channelIdx = segment.indexOf("channel=") + 8;
-                int channelCommaIdx = segment.indexOf(',', channelIdx);
-                int channel = segment.substring(channelIdx, channelCommaIdx).toInt();
+                    // 解析 channel
+                    int channelIdx = segment.indexOf("channel=") + 8;
+                    int channelCommaIdx = segment.indexOf(',', channelIdx);
+                    int channel = segment.substring(channelIdx, channelCommaIdx).toInt();
 
-                // 解析 initial
-                int initialIdx = segment.indexOf("initial=") + 8;
-                int initialCommaIdx = segment.indexOf(',', initialIdx);
-                int initial = segment.substring(initialIdx, initialCommaIdx).toInt();
+                    // 解析 initial
+                    int initialIdx = segment.indexOf("initial=") + 8;
+                    int initialCommaIdx = segment.indexOf(',', initialIdx);
+                    int initial = segment.substring(initialIdx, initialCommaIdx).toInt();
 
-                // 解析 end
-                int endIdx = segment.indexOf("end=") + 4;
-                int endCommaIdx = segment.indexOf(',', endIdx);
-                int end = segment.substring(endIdx, endCommaIdx).toInt();
+                    // 解析 end
+                    int endIdx = segment.indexOf("end=") + 4;
+                    int endCommaIdx = segment.indexOf(',', endIdx);
+                    int end = segment.substring(endIdx, endCommaIdx).toInt();
 
-                // 解析 increment
-                int incrementIdx = segment.indexOf("increment=") + 10;
-                int incrementCommaIdx = segment.indexOf(',', incrementIdx);
-                int increment = segment.substring(incrementIdx, incrementCommaIdx).toInt();
+                    // 解析 increment
+                    int incrementIdx = segment.indexOf("increment=") + 10;
+                    int incrementCommaIdx = segment.indexOf(',', incrementIdx);
+                    int increment = segment.substring(incrementIdx, incrementCommaIdx).toInt();
 
-                // 解析 ini_to_end
-                int ini_to_endIdx = segment.indexOf("ini_to_end=") + 11;
-                int ini_to_endColonIdx = segment.indexOf(':', ini_to_endIdx);
-                String iniToEndStr = segment.substring(ini_to_endIdx, ini_to_endColonIdx);
-                bool ini_to_end = (iniToEndStr == "True" || iniToEndStr == "1");
+                    // 解析 ini_to_end
+                    int ini_to_endIdx = segment.indexOf("ini_to_end=") + 11;
+                    int ini_to_endColonIdx = segment.indexOf(':', ini_to_endIdx);
+                    String iniToEndStr = segment.substring(ini_to_endIdx, ini_to_endColonIdx);
+                    bool ini_to_end = (iniToEndStr == "True" || iniToEndStr == "1");
 
-                Servo.moveServo(channel, initial, end, increment, ini_to_end);
+                    ClimbServo.moveServo(channel, initial, end, increment, ini_to_end);
                 }
                 // Format: platB_base,dir=1,speed=70,on_off=1:
                 else if (segment.indexOf("dir=") != -1) {
@@ -167,8 +169,30 @@ void loop() {
                     // 判斷是否啟動馬達（1 或 True 為啟動，0 或 False 為關閉）
                     bool on_off = (onOffStr == "1" || onOffStr == "True");
 
-                    Servo.setClimbMotor(dir, speed, on_off);
+                    ClimbServo.setClimbMotor(dir, speed, on_off);
                 }
+            }
+            // Format: coffee,channel=8,initial=10,end=20,reset=True\n
+            else if (segment.startsWith("coffee")) {
+                if (segment.indexOf("channel=") != -1){
+                    // 解析 channel
+                    int channelIdx = segment.indexOf("channel=") + 8;
+                    int channelCommaIdx = segment.indexOf(',', channelIdx);
+                    int channel = segment.substring(channelIdx, channelCommaIdx).toInt();
+
+                    // 解析 initial
+                    int initialIdx = segment.indexOf("initial=") + 8;
+                    int initialCommaIdx = segment.indexOf(',', initialIdx);
+                    int initial = segment.substring(initialIdx, initialCommaIdx).toInt();
+
+                    // 解析 end
+                    int endIdx = segment.indexOf("end=") + 4;
+                    int endCommaIdx = segment.indexOf(',', endIdx);
+                    int end = segment.substring(endIdx, endCommaIdx).toInt();
+
+
+                }
+            }
         }
     }
 }

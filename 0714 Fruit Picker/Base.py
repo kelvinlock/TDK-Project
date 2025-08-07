@@ -124,7 +124,6 @@ def main():
     bucket_grabbed = False      # 夾桶子狀態
     coffee_arm_open = False     # 咖啡手臂展開
     coffee_clamp_on = False     # 咖啡杯夾合
-    coffee_suction_on = False   # 咖啡盤吸附
     coffee_table_low = False    # 咖啡桌高度低/高
 
     # 主循環
@@ -232,9 +231,8 @@ def main():
                         data = f"coffee_clamp,{coffee_clamp_on}:\n"
                         arduinoB.write(data.encode())
                     elif event.button == 2:  # X鍵，咖啡盤吸附/放開
-                        coffee_suction_on = not coffee_suction_on
-                        data = f"coffee_suction,{coffee_suction_on}:\n"
-                        arduinoB.write(data.encode())
+                        arduinoB.write(b'coffee,channel=8,initial=10,end=20,reset=True\n') # reset 代表轉到指定位置會回到原點
+                        time.sleep(1)
                     elif event.button == 3:  # Y鍵，咖啡桌高度低/高
                         coffee_table_low = not coffee_table_low
                         data = f"coffee_table_height,{coffee_table_low}:\n"
