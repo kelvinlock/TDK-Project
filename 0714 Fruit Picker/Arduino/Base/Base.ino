@@ -6,9 +6,12 @@
 */
 #include <move.h>
 #include <Climb.h>
+#include <FruitPicker.h>
+#include <CoffeeMove.h>
 
 XboxDcMotorControl controller;
 climbServoManager ClimbServo;
+FruitPicker Fruit;
 coffeeServoManager CoffeeServo;
 const int limitSwitchA = 42;  // 平台A 極限開關腳位
 const int limitSwitchB = 43;  // 平台B 極限開關腳位
@@ -23,6 +26,7 @@ void setup() {
     pinMode(limitSwitchB, INPUT_PULLUP);
     controller.begin(); // 初始化馬達控制器
     ClimbServo.begin();
+    CoffeeServo.begin();
 }
 
 void loop() {
@@ -98,20 +102,35 @@ void loop() {
             // Format: fruit,dir=-1,speed=100,on_off=True:
             else if (segment.startsWith("fruit")) {
                 if (segment.indexOf("dir=") != -1) {
-                    // 解析 DC 馬達指令
+                    // 解析 Direction 指令
                     int dirIdx = segment.indexOf("dir=") + 4;
+                    int dirEnd = paramEnd(segment, dirIdx);
+                    int dir = segment.substring(dirIdx, dirEnd).toInt();
+
+                    // 解析 Speed 指令
                     int speedIdx = segment.indexOf("speed=") + 6;
+                    int speedEnd = paramEnd(segment, speedIdx);
+                    int speed = segment.substring(speedIdx, speedEnd).toInt();
+
+                    // 解析 on_off 指令
                     int onOffIdx = segment.indexOf("on_off=") + 7;
+                    int onOffEnd = paramEnd(segment, onOffIdx);
+                    String onOffStr = segment.substring(onOffIdx, onOffEnd);
+                    onOffStr.trim(); onOffStr.toLowerCase();
+                    bool on_off = (onOffStr == "1" || onOffStr == "true");
 
-                    int dir = segment.substring(dirIdx, segment.indexOf(',', dirIdx)).toInt();
-                    int speed = segment.substring(speedIdx, segment.indexOf(',', speedIdx)).toInt();
+                    // 安全正規化：方向只允許 -1/0/1；速度夾到 0~255
+                    int dirSafe   = (dir > 0) ? 1 : (dir < 0 ? -1 : 0);
+                    int speedSafe = constrain(speed, 0, 255);
 
-                    String onOffStr = segment.substring(onOffIdx);
-                    if (onOffStr.indexOf(',') != -1)
-                        onOffStr = onOffStr.substring(0, onOffStr.indexOf(','));
-                    bool on_off = (onOffStr == "True" || onOffStr == "1");
-
-                    controller.setMotor(dir, speed, on_off);  // 需於library中自訂
+                    // 兩顆 DC 都依 on_off 行為
+                    for (int i = 0; i < 2; ++i) {
+                        if (on_off) {
+                            Fruit.setDC(i, dirSafe, speedSafe);  // 開啟：照 dir/speed
+                        } else {
+                            Fruit.setDC(i, 0, 0);                // 關閉：直接停止
+                        }
+                    }
                 } else {
                     // 指令直接轉發給另一塊板子（例如下層執行特殊動作）
                     Serial1.println(segment); // 注意下層端 Serial.begin(9600) 是否有打開
@@ -172,27 +191,72 @@ void loop() {
                     ClimbServo.setClimbMotor(dir, speed, on_off);
                 }
             }
-            // Format: coffee,channel=8,initial=10,end=20,reset=True\n
+            // Format: coffee,channel=8,initial=10,end=20,reset=True:\n
             else if (segment.startsWith("coffee")) {
                 if (segment.indexOf("channel=") != -1){
+                    // 先準備變數在外層，避免作用域問題
+                    int  channel   = -1;
+                    int  initial   = -1;
+                    int  end       = -1;
+                    int  increment = 1;   // 預設 1（避免 0 步進）
+                    bool reset     = false;
+
                     // 解析 channel
-                    int channelIdx = segment.indexOf("channel=") + 8;
-                    int channelCommaIdx = segment.indexOf(',', channelIdx);
-                    int channel = segment.substring(channelIdx, channelCommaIdx).toInt();
+                    int pos = segment.indexOf("channel=");
+                    if (pos != -1) {
+                        pos += 8;
+                        int e = paramEnd(segment, pos);
+                        channel = segment.substring(pos, e).toInt();
+                    }
 
                     // 解析 initial
-                    int initialIdx = segment.indexOf("initial=") + 8;
-                    int initialCommaIdx = segment.indexOf(',', initialIdx);
-                    int initial = segment.substring(initialIdx, initialCommaIdx).toInt();
+                    pos = segment.indexOf("initial=");
+                    if (pos != -1) {
+                        pos += 8;
+                        int e = paramEnd(segment, pos);
+                        initial = segment.substring(pos, e).toInt();
+                    }
 
                     // 解析 end
-                    int endIdx = segment.indexOf("end=") + 4;
-                    int endCommaIdx = segment.indexOf(',', endIdx);
-                    int end = segment.substring(endIdx, endCommaIdx).toInt();
+                    pos = segment.indexOf("end=");
+                    if (pos != -1) {
+                        pos += 4;
+                        int e = paramEnd(segment, pos);
+                        end = segment.substring(pos, e).toInt();
+                    }
 
+                    // 解析 increment
+                    pos = segment.indexOf("increment=");
+                    if (pos != -1) {
+                        pos += 10;
+                        int e = paramEnd(segment, pos);
+                        increment = segment.substring(pos, e).toInt();
+                        if (increment <= 0) increment = 1;  // 防呆
+                    }
 
+                    // 解析 reset（True/true/1 視為 true）
+                    pos = segment.indexOf("reset=");
+                    if (pos != -1) {
+                        pos += 6;
+                        int e = paramEnd(segment, pos);
+                        String rs = segment.substring(pos, e);
+                        rs.trim();
+                        rs.toLowerCase();
+                        reset = (rs == "1" || rs == "true");
+                    }
+
+                    // 基本防呆：必須要有 channel、initial、end
+                    if (channel >= 0 && initial >= 0 && end >= 0) {
+                        CoffeeServo.removePlate(channel, initial, end, increment, reset);
+                    }
                 }
             }
         }
     }
+}
+
+// 回傳從 startIdx 開始，下一個參數的結束位置（逗號或冒號；若都沒有則回字串尾）
+int paramEnd(const String& s, int startIdx) {
+    int end = s.indexOf(',', startIdx);
+    return (end == -1) ? s.length() : end;
 }

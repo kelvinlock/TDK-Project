@@ -231,7 +231,7 @@ def main():
                         data = f"coffee_clamp,{coffee_clamp_on}:\n"
                         arduinoB.write(data.encode())
                     elif event.button == 2:  # X鍵，咖啡盤吸附/放開
-                        arduinoB.write(b'coffee,channel=8,initial=10,end=20,reset=True\n') # reset 代表轉到指定位置會回到原點
+                        arduinoB.write(b'coffee,channel=8,initial=10,end=20,increment=1,reset=True:\n') # reset 代表轉到指定位置會回到原點
                         time.sleep(1)
                     elif event.button == 3:  # Y鍵，咖啡桌高度低/高
                         coffee_table_low = not coffee_table_low
