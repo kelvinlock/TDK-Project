@@ -122,6 +122,7 @@ def main():
     fruit_force_on = False      # 控制步進馬達激磁狀態
     orange_clamp_on = False     # 夾柳丁狀態
     bucket_grabbed = False      # 夾桶子狀態
+    bucket_expanded = False     # 夾桶子夾爪的狀態
     coffee_arm_open = False     # 咖啡手臂展開
     coffee_clamp_on = False     # 咖啡杯夾合
     coffee_table_low = False    # 咖啡桌高度低/高
@@ -202,12 +203,15 @@ def main():
                 elif hat == (-1, 0):    # ← 桶子/攀爬模式
                     if event.button == 0:   # A鍵，桶子夾取/放下
                         bucket_grabbed = not bucket_grabbed
-                        data = f"bucket,{bucket_grabbed}:\n"
-                        arduinoB.write(data.encode())
+                        arduinoB.write(f"bucket,channel=11,initial=6,end=80,ini_to_end={bucket_grabbed}\n".encode())
                     elif event.button == 1: # B鍵，高台娃娃放置
                         arduinoB.write(b'ladder,place:\n')
                     elif event.button == 2: # X鍵，桶子傾倒
-                        arduinoB.write(b'bucket,titl:\n')
+                        bucket_expanded = not bucket_expanded
+                        data1 = f"bucket,channel=12,initial=90,end=0,ini_to_end={bucket_expanded}:\n"
+                        data2 = f"bucket,channel=13,initial=90,end=0,ini_to_end={bucket_expanded}:\n"
+                        arduinoB.write(data1.encode())
+                        arduinoB.write(data2.encode())
                     elif event.button == 3: # Y鍵，爬高台樓梯 Servo, Stepper, DC
                         # 展開->平臺下降->DC(前後)往前推->前面平臺上升->DC(后面)往前推->後面平臺上升->收起來
                         if climb_level == 0:
@@ -228,8 +232,7 @@ def main():
                         arduinoB.write(data.encode())
                     elif event.button == 1:  # B鍵，咖啡杯夾合/放
                         coffee_clamp_on = not coffee_clamp_on
-                        data = f"coffee_clamp,{coffee_clamp_on}:\n"
-                        arduinoB.write(data.encode())
+                        arduinoB.write(f'coffee,channel=7,initial=90,end=0,increment=1,ini_to_end={coffee_clamp_on}:\n'.encode())
                     elif event.button == 2:  # X鍵，咖啡盤吸附/放開
                         arduinoB.write(b'coffee,channel=8,initial=10,end=20,increment=1,reset=True:\n') # reset 代表轉到指定位置會回到原點
                         time.sleep(1)

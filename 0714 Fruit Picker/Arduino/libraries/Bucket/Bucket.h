@@ -1,5 +1,5 @@
-#ifndef COFFEE_MOVE_H   // 防止重複引用標頭檔（Header Guard）開始
-#define COFFEE_MOVE_H
+#ifndef BUCKET_H
+#define BUCKET_H
 
 #include <Arduino.h>                     // 引入 Arduino 核心函式庫（提供 pinMode、digitalWrite 等）
 #include <Adafruit_PWMServoDriver.h>     // 引入 Adafruit 的 PWM 驅動模組（用來控制 PCA9685 控制板）
@@ -25,37 +25,15 @@ struct ServoConfig {
 // 咖啡機伺服馬達管理類別
 // =============================
 // 用來集中管理多顆伺服馬達的動作邏輯（抓杯子、移動托盤等功能）
-class coffeeServoManager {
+class bucketServoManager {
     public:
-        coffeeServoManager();   // 建構子：設定預設伺服馬達參數（起點、終點等）
+        bucketServoManager();   // 建構子：設定預設伺服馬達參數（起點、終點等）
         void begin();           // 初始化 PCA9685 控制器（設置 PWM 頻率等）
-
-        /**
-         * 單向動作（抓杯子）
-         * @param channel    要控制的馬達通道
-         * @param initial    動作起始角度
-         * @param end        動作終止角度
-         * @param increment  每次移動的角度步長（數值越大動作越快）
-         * @param ini_to_end true  表示從 initial → end
-         *                   false 表示從 end → initial
-         */
-        void grabCup(int channel, int initial, int end, int increment, bool ini_to_end);
-
-        /**
-         * 移動托盤
-         * @param channel    要控制的馬達通道
-         * @param initial    動作起始角度
-         * @param end        動作終止角度
-         * @param increment  每次移動的角度步長
-         * @param reset      true  表示 initial → end → initial（往返動作）
-         *                   false 表示 initial → end（單程動作）
-         */
-        void removePlate(int channel, int initial, int end, int increment, bool reset);
-
+        void ExpandFrontArmsForGrab(int channel,int initial,int end,int increment,bool ini_to_end);
+        void FrontArmsGrab(int channel, int initial, int end, int increment, bool ini_to_end);
     private:
         Adafruit_PWMServoDriver pwm;      // PCA9685 控制物件（可同時控制最多 16 顆伺服）
-        static const int servoCount = 2;  // 伺服馬達數量（依實際機器數量修改）
+        static const int servoCount = 3;  // 伺服馬達數量（依實際機器數量修改）
         ServoConfig servos[servoCount];   // 儲存每顆伺服的設定資料（通道、起點、終點）
 };
-
-#endif // 防止重複引用標頭檔結束
+#endif

@@ -1,57 +1,76 @@
 /*
     平台控制 Arduino Board B
     連接方式：直接從 UP7000 連接出來
-    主要負責：控制各種動作
-    位置：整個機器
+    功能範圍：負責控制整台機器的各種動作（平台、夾具、咖啡機等）
+    位置：整台機器的上層控制系統
 */
-#include <move.h>
-#include <Climb.h>
-#include <FruitPicker.h>
-#include <CoffeeMove.h>
 
-XboxDcMotorControl controller;
-climbServoManager ClimbServo;
-FruitPicker Fruit;
-coffeeServoManager CoffeeServo;
-const int limitSwitchA = 42;  // 平台A 極限開關腳位
-const int limitSwitchB = 43;  // 平台B 極限開關腳位
+// ====== 引入自訂及外部函式庫 ======
+#include <move.h>         // 控制直流馬達（DC Motor）的類別
+#include <Climb.h>        // 控制爬升平台伺服馬達的類別
+#include <FruitPicker.h>  // 控制水果夾持模組（含直流馬達與伺服）
+#include <CoffeeMove.h>   // 控制咖啡機夾杯與托盤的伺服馬達
+#include <Bucket.h>       // 控制桶子伺服的類別
 
-bool lastLimitA = HIGH; // 記錄上一次平台A極限開關狀態
-bool lastLimitB = HIGH; // 記錄上一次平台B極限開關狀態
+// ====== 建立各功能模組物件 ======
+XboxDcMotorControl controller;  // 控制四顆 DC 馬達（平台行走用）
+climbServoManager ClimbServo;   // 控制爬升平台伺服
+FruitPicker Fruit;              // 水果夾持模組
+coffeeServoManager CoffeeServo; // 咖啡機伺服模組
+bucketServoManager Bucket;      // Bucket 伺服模組
 
+// ====== 極限開關腳位（平台位置檢測） ======
+const int limitSwitchA = 42;  // 平台 A 底部極限開關
+const int limitSwitchB = 43;  // 平台 B 底部極限開關
+
+// ====== 紀錄極限開關的上一個狀態（用於判斷變化） ======
+bool lastLimitA = HIGH; // 平台 A 上一次的開關狀態（HIGH=未觸發）
+bool lastLimitB = HIGH; // 平台 B 上一次的開關狀態
+
+// ====== 初始化階段 ======
 void setup() {
-    Serial.begin(9600);
-    Serial1.begin(9600);
-    pinMode(limitSwitchA, INPUT_PULLUP); // 設定極限開關腳位為上拉輸入
+    Serial.begin(9600);    // 與上位機（例如 Python）串口通信
+    Serial1.begin(9600);   // 與下層板子通信（板對板傳輸）
+
+    // 設定極限開關為內部上拉輸入（未觸發時為 HIGH）
+    pinMode(limitSwitchA, INPUT_PULLUP);
     pinMode(limitSwitchB, INPUT_PULLUP);
-    controller.begin(); // 初始化馬達控制器
-    ClimbServo.begin();
-    CoffeeServo.begin();
+
+    // 初始化各控制模組
+    controller.begin();  // 直流馬達控制初始化
+    ClimbServo.begin();  // 爬升伺服初始化
+    Fruit.begin();
+    CoffeeServo.begin(); // 咖啡伺服初始化
+    Bucket.begin();
 }
 
+// ====== 主循環 ======
 void loop() {
-    // ========= 極限開關偵測與回報（僅變化時回傳）=========
-    bool nowLimitA = digitalRead(limitSwitchA);
-    bool nowLimitB = digitalRead(limitSwitchB);
-    // 若檢測到 HIGH 轉 LOW（下降沿），代表到達頂部，只回報一次
+    // ========= 極限開關狀態檢測 =========
+    bool nowLimitA = digitalRead(limitSwitchA); // 讀取平台 A 狀態
+    bool nowLimitB = digitalRead(limitSwitchB); // 讀取平台 B 狀態
+
+    // 檢測「下降沿觸發」：HIGH → LOW，表示碰到底部位置
     if (lastLimitA == HIGH && nowLimitA == LOW) {
-        Serial.println("PlatformA_Bottom");  // 通知上位機，平台A到頂
+        Serial.println("PlatformA_Bottom"); // 回報平台 A 到達底部
     }
     if (lastLimitB == HIGH && nowLimitB == LOW) {
-        Serial.println("PlatformB_Bottom");  // 通知上位機，平台B到頂
+        Serial.println("PlatformB_Bottom"); // 回報平台 B 到達底部
     }
-    lastLimitA = nowLimitA; // 更新狀態
+
+    // 更新狀態記錄
+    lastLimitA = nowLimitA;
     lastLimitB = nowLimitB;
 
-    // ========= 指令接收與分割處理 =========
+    // ========= 處理上位機傳來的指令 =========
     if (Serial.available() > 0) {
-        String data = Serial.readStringUntil('\n'); // 讀取一行串口數據
-        data.trim(); // 去除字串首尾空白
+        String data = Serial.readStringUntil('\n'); // 讀取一行完整指令
+        data.trim(); // 去除前後空白
 
-        // 使用 ':' 拆分成多個指令段（例如一次控制多顆馬達）
+        // ====== 將指令分段（以 ':' 分隔，可同時下多條指令） ======
         int last = 0;
         int idx = 0;
-        String segments[10]; // 最多10個指令段
+        String segments[10]; // 最多 10 段指令
         while (last < data.length()) {
             int colon = data.indexOf(':', last);
             if (colon == -1) {
@@ -63,180 +82,181 @@ void loop() {
             }
         }
 
-        int motorIndex = 0; // 馬達索引（左前、右前、左後、右後）
+        int motorIndex = 0; // 用來記錄目前處理的是哪顆 DC 馬達（依順序）
 
-        // 依序解析每個指令段(segment)
+        // ====== 逐段解析指令 ======
         for (int i = 0; i < idx; i++) {
             String segment = segments[i];
             segment.trim();
 
-            // 支援 "move" 或 "turn" 開頭的直流馬達控制指令
+            // ====== 處理 DC 馬達移動指令 ======
+            // 格式範例: move,dir=1,speed=100,on_off=1:
             if (segment.startsWith("move") || segment.startsWith("turn")) {
                 int dir = 0, speed = 0;
                 bool on_off = false;
 
-                // 解析 dir、speed、on_off 參數
+                // 抓取 dir 參數
                 int dirIdx = segment.indexOf("dir=") + 4;
                 int speedIdx = segment.indexOf("speed=") + 6;
                 int onOffIdx = segment.indexOf("on_off=") + 7;
 
-                // 取得馬達方向（1前進、-1後退、0停止）
                 dir = segment.substring(dirIdx, segment.indexOf(',', dirIdx)).toInt();
-                // 取得馬達速度（0~255）
                 speed = segment.substring(speedIdx, segment.indexOf(',', speedIdx)).toInt();
-                // on_off 取到字串結尾（判斷是否要啟動馬達）
+
+                // 取 on_off（啟動狀態）
                 String onOffStr = segment.substring(onOffIdx);
                 if (onOffStr.indexOf(',') != -1)
                     onOffStr = onOffStr.substring(0, onOffStr.indexOf(','));
-                on_off = (onOffStr == "1"); // 是否啟動（1為啟動）
+                on_off = (onOffStr == "1");
 
-                // 執行馬達控制
+                // 控制對應馬達
                 if (on_off) {
-                    controller.setMotor(motorIndex, dir, speed); // 控制第 motorIndex 顆馬達
+                    controller.setMotor(motorIndex, dir, speed);
                 } else {
-                    controller.setMotor(motorIndex, 0, 0);      // 停止該馬達
+                    controller.setMotor(motorIndex, 0, 0);
                 }
-                motorIndex++; // 處理下一顆馬達
+                motorIndex++;
             }
-            // "fruit" 模式：用於水果夾持的馬達指令
-            // Format: fruit,dir=-1,speed=100,on_off=True:
+
+            // ====== 處理水果夾持指令 ======
+            // 格式範例: fruit,dir=-1,speed=100,on_off=True:
             else if (segment.startsWith("fruit")) {
                 if (segment.indexOf("dir=") != -1) {
-                    // 解析 Direction 指令
+                    // 解析三個參數：dir、speed、on_off
                     int dirIdx = segment.indexOf("dir=") + 4;
                     int dirEnd = paramEnd(segment, dirIdx);
                     int dir = segment.substring(dirIdx, dirEnd).toInt();
 
-                    // 解析 Speed 指令
                     int speedIdx = segment.indexOf("speed=") + 6;
                     int speedEnd = paramEnd(segment, speedIdx);
                     int speed = segment.substring(speedIdx, speedEnd).toInt();
 
-                    // 解析 on_off 指令
                     int onOffIdx = segment.indexOf("on_off=") + 7;
                     int onOffEnd = paramEnd(segment, onOffIdx);
                     String onOffStr = segment.substring(onOffIdx, onOffEnd);
                     onOffStr.trim(); onOffStr.toLowerCase();
                     bool on_off = (onOffStr == "1" || onOffStr == "true");
 
-                    // 安全正規化：方向只允許 -1/0/1；速度夾到 0~255
+                    // 防呆修正
                     int dirSafe   = (dir > 0) ? 1 : (dir < 0 ? -1 : 0);
                     int speedSafe = constrain(speed, 0, 255);
 
-                    // 兩顆 DC 都依 on_off 行為
+                    // 同時控制兩顆直流馬達
                     for (int i = 0; i < 2; ++i) {
                         if (on_off) {
-                            Fruit.setDC(i, dirSafe, speedSafe);  // 開啟：照 dir/speed
+                            Fruit.setDC(i, dirSafe, speedSafe);
                         } else {
-                            Fruit.setDC(i, 0, 0);                // 關閉：直接停止
+                            Fruit.setDC(i, 0, 0);
                         }
                     }
                 } else {
-                    // 指令直接轉發給另一塊板子（例如下層執行特殊動作）
-                    Serial1.println(segment); // 注意下層端 Serial.begin(9600) 是否有打開
+                    // 如果沒有 dir 參數，直接轉發給另一塊板子
+                    Serial1.println(segment);
                 }
             }
-            // 處理平台伺服馬達指令
-            // Format: platA_base,channel=3,initial=10,end=20,increment=1,ini_to_end=True:
+
+            // ====== 處理平台伺服指令 ======
+            // 格式範例: platA_base,channel=3,initial=10,end=20,increment=1,ini_to_end=True:
             else if (segment.startsWith("platA_base") || segment.startsWith("platB_base")) {
                 if (segment.indexOf("channel=") != -1) {
-                    // 解析 channel
+                    // 解析各參數
                     int channelIdx = segment.indexOf("channel=") + 8;
                     int channelCommaIdx = segment.indexOf(',', channelIdx);
                     int channel = segment.substring(channelIdx, channelCommaIdx).toInt();
 
-                    // 解析 initial
                     int initialIdx = segment.indexOf("initial=") + 8;
                     int initialCommaIdx = segment.indexOf(',', initialIdx);
                     int initial = segment.substring(initialIdx, initialCommaIdx).toInt();
 
-                    // 解析 end
                     int endIdx = segment.indexOf("end=") + 4;
                     int endCommaIdx = segment.indexOf(',', endIdx);
                     int end = segment.substring(endIdx, endCommaIdx).toInt();
 
-                    // 解析 increment
                     int incrementIdx = segment.indexOf("increment=") + 10;
                     int incrementCommaIdx = segment.indexOf(',', incrementIdx);
                     int increment = segment.substring(incrementIdx, incrementCommaIdx).toInt();
 
-                    // 解析 ini_to_end
                     int ini_to_endIdx = segment.indexOf("ini_to_end=") + 11;
                     int ini_to_endColonIdx = segment.indexOf(':', ini_to_endIdx);
                     String iniToEndStr = segment.substring(ini_to_endIdx, ini_to_endColonIdx);
                     bool ini_to_end = (iniToEndStr == "True" || iniToEndStr == "1");
 
+                    // 執行平台伺服動作
                     ClimbServo.moveServo(channel, initial, end, increment, ini_to_end);
                 }
-                // Format: platB_base,dir=1,speed=70,on_off=1:
+                // 格式範例: platB_base,dir=1,speed=70,on_off=1:
                 else if (segment.indexOf("dir=") != -1) {
-                    // 取得 dir 參數的位置，dir= 後面為數值
-                    int dirIdx = segment.indexOf("dir=") + 4;  // 找到 dir= 字串後，定位到數值起始處
-                    int dirCommaIdx = segment.indexOf(',', dirIdx); // 找下一個逗號（,）的位置，表示 dir 結束的位置
-                    int dir = segment.substring(dirIdx, dirCommaIdx).toInt(); // 取出 dir 的數值，轉換為整數（1=正轉, -1=反轉, 0=停止）
+                    int dirIdx = segment.indexOf("dir=") + 4;
+                    int dirCommaIdx = segment.indexOf(',', dirIdx);
+                    int dir = segment.substring(dirIdx, dirCommaIdx).toInt();
 
-                    // 取得 speed 參數的位置，speed= 後面為數值
-                    int speedIdx = segment.indexOf("speed=") + 6;   // 找到 speed= 字串後，定位到數值起始處
-                    int speedCommaIdx = segment.indexOf(',', speedIdx); // 找 speed= 之後第一個逗號（,）的位置
-                    int speed = segment.substring(speedIdx, speedCommaIdx).toInt(); // 取出 speed 數值（0~255），轉換為整數
+                    int speedIdx = segment.indexOf("speed=") + 6;
+                    int speedCommaIdx = segment.indexOf(',', speedIdx);
+                    int speed = segment.substring(speedIdx, speedCommaIdx).toInt();
 
-                    // 取得 on_off 參數的位置，on_off= 後面為數值
-                    int onOffIdx = segment.indexOf("on_off=") + 7;  // 找到 on_off= 字串後，定位到數值起始處
-                    int onOffColonIdx = segment.indexOf(':', onOffIdx); // 找到指令結尾的冒號（:）
-                    String onOffStr = segment.substring(onOffIdx, onOffColonIdx); // 取出 on_off 的字串內容（"1"、"0"、"True"、"False"）
+                    int onOffIdx = segment.indexOf("on_off=") + 7;
+                    int onOffColonIdx = segment.indexOf(':', onOffIdx);
+                    String onOffStr = segment.substring(onOffIdx, onOffColonIdx);
 
-                    // 判斷是否啟動馬達（1 或 True 為啟動，0 或 False 為關閉）
                     bool on_off = (onOffStr == "1" || onOffStr == "True");
 
                     ClimbServo.setClimbMotor(dir, speed, on_off);
                 }
             }
-            // Format: coffee,channel=8,initial=10,end=20,reset=True:\n
+
+            // ====== 處理咖啡機伺服指令 ======
+            // 格式範例: coffee,channel=8,initial=10,end=20,increment=1,ini_to_end=True:
             else if (segment.startsWith("coffee")) {
                 if (segment.indexOf("channel=") != -1){
-                    // 先準備變數在外層，避免作用域問題
+                    // 先定義變數
                     int  channel   = -1;
                     int  initial   = -1;
                     int  end       = -1;
-                    int  increment = 1;   // 預設 1（避免 0 步進）
-                    bool reset     = false;
+                    int  increment = 1;
+                    bool ini_to_end = true;
+                    bool hasIni     = false;
+                    bool reset      = false;
+                    bool hasReset   = false;
 
-                    // 解析 channel
+                    // 依序解析 channel、initial、end、increment、ini_to_end、reset
                     int pos = segment.indexOf("channel=");
                     if (pos != -1) {
                         pos += 8;
                         int e = paramEnd(segment, pos);
                         channel = segment.substring(pos, e).toInt();
                     }
-
-                    // 解析 initial
                     pos = segment.indexOf("initial=");
                     if (pos != -1) {
                         pos += 8;
                         int e = paramEnd(segment, pos);
                         initial = segment.substring(pos, e).toInt();
                     }
-
-                    // 解析 end
                     pos = segment.indexOf("end=");
                     if (pos != -1) {
                         pos += 4;
                         int e = paramEnd(segment, pos);
                         end = segment.substring(pos, e).toInt();
                     }
-
-                    // 解析 increment
                     pos = segment.indexOf("increment=");
                     if (pos != -1) {
                         pos += 10;
                         int e = paramEnd(segment, pos);
                         increment = segment.substring(pos, e).toInt();
-                        if (increment <= 0) increment = 1;  // 防呆
+                        if (increment <= 0) increment = 1;
                     }
-
-                    // 解析 reset（True/true/1 視為 true）
+                    pos = segment.indexOf("ini_to_end=");
+                    if (pos != -1) {
+                        hasIni = true;
+                        pos += 11;
+                        int e = paramEnd(segment, pos);
+                        String v = segment.substring(pos, e);
+                        v.trim();
+                        v.toLowerCase();
+                        ini_to_end = (v == "1" || v == "true");
+                    }
                     pos = segment.indexOf("reset=");
                     if (pos != -1) {
+                        hasReset = true;
                         pos += 6;
                         int e = paramEnd(segment, pos);
                         String rs = segment.substring(pos, e);
@@ -245,9 +265,75 @@ void loop() {
                         reset = (rs == "1" || rs == "true");
                     }
 
-                    // 基本防呆：必須要有 channel、initial、end
+                    // 驗證必要參數
                     if (channel >= 0 && initial >= 0 && end >= 0) {
-                        CoffeeServo.removePlate(channel, initial, end, increment, reset);
+                        if (hasIni) {
+                            CoffeeServo.grabCup(channel, initial, end, increment, ini_to_end);
+                        } else if (hasReset) {
+                            CoffeeServo.removePlate(channel, initial, end, increment, reset);
+                        }
+                    }
+                }
+            }
+            // ====== 處理 Bucket（前臂/夾具）伺服指令 ======
+            // 單向格式範例：bucket,channel=7,initial=90,end=0,increment=2,ini_to_end=True:
+            else if (segment.startsWith("bucket")) {
+                if (segment.indexOf("channel=") != -1){
+                    // 必要參數
+                    int  channel    = -1;
+                    int  initial    = -1;
+                    int  end        = -1;
+                    int  increment  = 1;      // 預設 1（避免 0）
+                    bool ini_to_end = true;   // True: initial->end；False: end->initial
+                    bool hasIni     = false;
+                    bool reset      = false;
+
+                    // 依序解析 channel、initial、end、increment、ini_to_end、(reset)
+                    int pos = segment.indexOf("channel=");
+                    if (pos != -1) {
+                        pos += 8;
+                        int e = paramEnd(segment, pos);
+                        channel = segment.substring(pos, e).toInt();
+                    }
+                    pos = segment.indexOf("initial=");
+                    if (pos != -1) {
+                        pos += 8;
+                        int e = paramEnd(segment, pos);
+                        initial = segment.substring(pos, e).toInt();
+                    }
+                    pos = segment.indexOf("end=");
+                    if (pos != -1) {
+                        pos += 4;
+                        int e = paramEnd(segment, pos);
+                        end = segment.substring(pos, e).toInt();
+                    }
+                    pos = segment.indexOf("increment=");
+                    if (pos != -1) {
+                        pos += 10;
+                        int e = paramEnd(segment, pos);
+                        increment = segment.substring(pos, e).toInt();
+                        if (increment <= 0) increment = 1;
+                    }
+                    pos = segment.indexOf("ini_to_end=");
+                    if (pos != -1) {
+                        hasIni = true;
+                        pos += 11;
+                        int e = paramEnd(segment, pos);
+                        String v = segment.substring(pos, e);
+                        v.trim(); v.toLowerCase();
+                        ini_to_end = (v == "1" || v == "true");
+                    }
+                    // 解析階段若沒帶 ini_to_end，請預設：ini_to_end = true
+                    // 這裡只做參數檢查 + 依 channel 路由
+                    if (channel >= 0 && initial >= 0 && end >= 0) {
+                        // 將 bucket 的單向動作統一由 ini_to_end 決定方向
+                        if (channel == 11) {
+                            // 11 號：前臂夾取（單臂）
+                            Bucket.FrontArmsGrab(channel, initial, end, increment, ini_to_end);
+                        } else if (channel == 12 || channel == 13) {
+                            // 12/13 號：展開前臂（雙/前臂版本）
+                            Bucket.ExpandFrontArmsForGrab(channel, initial, end, increment, ini_to_end);
+                        }
                     }
                 }
             }
@@ -255,7 +341,8 @@ void loop() {
     }
 }
 
-// 回傳從 startIdx 開始，下一個參數的結束位置（逗號或冒號；若都沒有則回字串尾）
+// ====== 輔助函式 ======
+// 找到某參數的結束位置（逗號、冒號或字串結尾）
 int paramEnd(const String& s, int startIdx) {
     int end = s.indexOf(',', startIdx);
     return (end == -1) ? s.length() : end;
